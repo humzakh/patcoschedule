@@ -1,0 +1,552 @@
+@font-face {
+    font-family: 'BlinkMacSystemFont';
+    src: url('/static/fonts/BlinkMacSystemFont-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'BlinkMacSystemFont';
+    src: url('/static/fonts/BlinkMacSystemFont-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'BlinkMacSystemFont';
+    src: url('/static/fonts/BlinkMacSystemFont-Semibold.woff2') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'BlinkMacSystemFont';
+    src: url('/static/fonts/BlinkMacSystemFont-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+}
+
+:root {
+    --patco-red: #c30032;
+    --patco-red-dark: #a00029;
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: rgba(255, 255, 255, 0.03);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-muted: rgba(255, 255, 255, 0.4);
+    --glow: rgba(195, 0, 50, 0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'BlinkMacSystemFont', 'Inter', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.container {
+    max-width: 480px;
+    width: 100%;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.logo {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--patco-red);
+    margin-bottom: 0.25rem;
+}
+
+.patco-logo-img {
+    height: 0.75em;
+    width: 5.36em;
+    /* 0.75em * (250/35) */
+    display: inline-block;
+    vertical-align: -3%;
+    background-image: url('/static/images/patco.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    backdrop-filter: blur(20px);
+}
+
+.selector-group {
+    margin-bottom: 1rem;
+}
+
+.selector-group:last-child {
+    margin-bottom: 0;
+}
+
+label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+}
+
+select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--patco-red);
+    box-shadow: 0 0 0 3px var(--glow);
+}
+
+select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.direction-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.direction-btn {
+    flex: 1;
+    padding: 0.875rem 1rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.direction-btn[data-direction="eastbound"]:not(.active):hover {
+    border-color: var(--east-color, var(--patco-red));
+    color: var(--east-color, var(--text-primary));
+}
+
+.direction-btn[data-direction="westbound"]:not(.active):hover {
+    border-color: var(--west-color, var(--patco-red));
+    color: var(--west-color, var(--text-primary));
+}
+
+.direction-btn.active {
+    background: linear-gradient(135deg, var(--patco-red), var(--patco-red-dark));
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 15px var(--glow);
+    font-weight: 500;
+}
+
+.next-train-card {
+    text-align: center;
+    padding: 2rem 1.5rem;
+}
+
+.countdown-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.countdown {
+    font-size: 4.5rem;
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--patco-red), #ff9a5c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.25rem;
+}
+
+.countdown-unit {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.next-time {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.upcoming-time {
+    font-size: 1.1rem;
+    font-weight: 600;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.schedule-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--patco-red);
+    font-weight: 700;
+    background: rgba(195, 0, 50, 0.1);
+    border: 1.5px solid rgba(195, 0, 50, 0.3);
+    border-radius: 9999px;
+    margin-top: 1rem;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+/* Special schedule - yellow */
+.schedule-badge.special {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+a.schedule-badge.special:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: #f59e0b;
+}
+
+/* Weekday schedule - light blue */
+.schedule-badge.weekday {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+a.schedule-badge.weekday:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+}
+
+/* Weekend schedule - light purple */
+.schedule-badge.weekend {
+    color: #c084fc;
+    background: rgba(192, 132, 252, 0.1);
+    border-color: rgba(192, 132, 252, 0.3);
+}
+
+a.schedule-badge.weekend:hover {
+    background: rgba(192, 132, 252, 0.2);
+    border-color: #c084fc;
+}
+
+/* Sunday schedule - pink */
+.schedule-badge.sunday {
+    color: #f472b6;
+    background: rgba(244, 114, 182, 0.1);
+    border-color: rgba(244, 114, 182, 0.3);
+}
+
+a.schedule-badge.sunday:hover {
+    background: rgba(244, 114, 182, 0.2);
+    border-color: #f472b6;
+}
+
+a.schedule-badge:hover {
+    background: rgba(195, 0, 50, 0.2);
+    border-color: var(--patco-red);
+}
+
+.upcoming-list {
+    list-style: none;
+}
+
+.upcoming-item {
+    display: grid;
+    grid-template-columns: 5.5rem 3.5rem 1fr auto;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    gap: 0.5rem;
+}
+
+.upcoming-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.upcoming-item.thick-border {
+    border-bottom: 2px solid var(--border-color);
+}
+
+.upcoming-item:first-child {
+    padding-top: 0;
+}
+
+#hiddenTrains {
+    border-top: 1px solid var(--border-color);
+    margin-top: 1rem;
+    padding-top: 0;
+}
+
+#hiddenTrains .upcoming-item:first-child {
+    padding-top: 1rem;
+}
+
+.upcoming-time {
+    font-size: 1.1rem;
+    font-weight: 600;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.upcoming-tomorrow {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+.upcoming-minutes {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.upcoming-schedule {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-left: 0.5rem;
+    text-decoration: none;
+    display: inline-block;
+    border: 1.5px solid rgba(195, 0, 50, 0.3);
+    color: var(--patco-red);
+    background: rgba(195, 0, 50, 0.1);
+    transition: all 0.2s;
+}
+
+.upcoming-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 0 0.5rem 0;
+    margin-top: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.upcoming-header:first-child {
+    margin-top: 0;
+    padding-top: 0;
+}
+
+a.upcoming-schedule:hover {
+    background: rgba(195, 0, 50, 0.2);
+    border-color: var(--patco-red);
+    text-decoration: none;
+    opacity: 1;
+}
+
+.upcoming-schedule.special {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+a.upcoming-schedule.special:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: #f59e0b;
+}
+
+.upcoming-schedule.weekday {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+a.upcoming-schedule.weekday:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+}
+
+.upcoming-schedule.weekend {
+    color: #c084fc;
+    background: rgba(192, 132, 252, 0.15);
+    border-color: rgba(192, 132, 252, 0.3);
+}
+
+a.upcoming-schedule.weekend:hover {
+    background: rgba(192, 132, 252, 0.2);
+    border-color: #c084fc;
+}
+
+.upcoming-schedule.sunday {
+    color: #f472b6;
+    background: rgba(244, 114, 182, 0.15);
+    border-color: rgba(244, 114, 182, 0.3);
+}
+
+a.upcoming-schedule.sunday:hover {
+    background: rgba(244, 114, 182, 0.2);
+    border-color: #f472b6;
+}
+
+.show-more-btn {
+    width: 100%;
+    padding: 0.75rem;
+    margin-top: 1.25rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.show-more-btn:hover {
+    border-color: var(--severity-color, var(--patco-red));
+    color: var(--text-primary);
+}
+
+.loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--patco-red);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error {
+    text-align: center;
+    padding: 2rem;
+    color: #ff6b6b;
+}
+
+.refresh-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.refresh-note #refreshCountdown {
+    display: inline-block;
+    min-width: 1.25em;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+}
+
+.refresh-ring {
+    width: 20px;
+    height: 20px;
+    position: relative;
+}
+
+.refresh-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.refresh-ring circle {
+    fill: none;
+    stroke-width: 2;
+}
+
+.refresh-ring .bg {
+    stroke: var(--border-color);
+}
+
+.refresh-ring .progress {
+    stroke: var(--patco-red);
+    stroke-linecap: round;
+}
+
+.refresh-ring .progress.animated {
+    transition: stroke-dashoffset 1s linear;
+}
+
+footer {
+    margin-top: auto;
+    padding-top: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .countdown {
+        font-size: 3.5rem;
+    }
+}

@@ -15,13 +15,16 @@ from pathlib import Path
 from datetime import datetime, time, timedelta
 import pandas as pd
 
+# Add parent directory to path to allow imports
+sys.path.append(str(Path(__file__).parent.parent))
+
 # Import our modules
-from download_schedules import download_all, OUTPUT_DIR as PDF_DIR
-from extract_timetable import extract_all, STATIONS_WESTBOUND, STATIONS_EASTBOUND
+from app.utils.download_schedules import download_all, OUTPUT_DIR as PDF_DIR
+from app.utils.extract_timetable import extract_all, STATIONS_WESTBOUND, STATIONS_EASTBOUND
 
 
 SCRIPT_DIR = Path(__file__).parent
-CSV_DIR = SCRIPT_DIR / "schedules"
+CSV_DIR = SCRIPT_DIR / "outputs"
 
 
 def get_schedule_type_for_date(dt: datetime) -> str:
@@ -245,11 +248,11 @@ Stations (eastbound): 15/16th & Locust → Lindenwold
     CSV_DIR.mkdir(exist_ok=True)
     
     # Download PDFs
-    pdfs = download_all(skip_existing=not args.refresh, cleanup=True)
+    pdfs = download_all(skip_existing=not args.refresh, cleanup=False)
     
     # Extract CSVs
     for pdf in pdfs:
-        extract_all(pdf, CSV_DIR, skip_existing=not args.refresh, cleanup=True, quiet=True)
+        extract_all(pdf['local_path'], CSV_DIR, skip_existing=not args.refresh, cleanup=False, quiet=True)
     
     # Get schedule info for display
     today_df, today_schedule = load_schedule_for_date(now, direction)

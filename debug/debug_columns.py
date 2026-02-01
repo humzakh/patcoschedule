@@ -119,7 +119,7 @@ def extract_with_column_boundaries(pdf_path: str):
 
 
 def main():
-    pdf_path = Path(__file__).parent / "pdfs" / "PATCO_Timetable.pdf"
+    pdf_path = Path(__file__).parent.parent / "app" / "schedules" / "source_pdfs" / "standard" / "PATCO_Timetable.pdf"
     
     if not pdf_path.exists():
         print(f"Error: {pdf_path} not found")

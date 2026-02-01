@@ -1,2 +1,4 @@
-schedules
-pdfs
+.DS_Store
+__pycache__
+app/schedules
+debug/outputs
