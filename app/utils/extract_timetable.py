@@ -55,10 +55,13 @@ def check_cache(pdf_path: Path, output_dir: Path) -> bool:
     return len(existing) > 0
 
 
-def detect_column_centers(times: list[dict], min_gap: float = 12) -> list[float]:
+def detect_column_centers(times: list[dict], min_gap: float = 12, expected_cols: int = None) -> list[float]:
     """
     Detect column centers by clustering x-positions.
     Returns list of column center x-coordinates.
+    
+    If expected_cols is provided and we find more columns than expected,
+    we merge the closest columns until we reach the expected count.
     """
     if not times:
         return []
@@ -82,6 +85,21 @@ def detect_column_centers(times: list[dict], min_gap: float = 12) -> list[float]
     
     # Don't forget the last cluster
     column_centers.append(sum(cluster) / len(cluster))
+    
+    # If we have too many columns and expected_cols is set, merge closest ones
+    if expected_cols and len(column_centers) > expected_cols:
+        while len(column_centers) > expected_cols:
+            # Find smallest gap between adjacent columns
+            min_gap_idx = 0
+            min_gap_val = float('inf')
+            for i in range(len(column_centers) - 1):
+                gap = column_centers[i+1] - column_centers[i]
+                if gap < min_gap_val:
+                    min_gap_val = gap
+                    min_gap_idx = i
+            # Merge these two columns
+            merged = (column_centers[min_gap_idx] + column_centers[min_gap_idx + 1]) / 2
+            column_centers = column_centers[:min_gap_idx] + [merged] + column_centers[min_gap_idx + 2:]
     
     return column_centers
 
@@ -264,7 +282,7 @@ def extract_schedule_from_region(page, y_start: float, y_end: float,
     eb_header_centers = extract_column_centers_from_headers(page, page_midpoint, page.width)
     
     # Extract times and closed markers
-    items = extract_times_with_position(page, y_start, page.height - 40)
+    items = extract_times_with_position(page, y_start, y_end)
     
     wb_items = [t for t in items if t['x'] < page_midpoint]
     eb_items = [t for t in items if t['x'] >= page_midpoint]
@@ -273,14 +291,17 @@ def extract_schedule_from_region(page, y_start: float, y_end: float,
     eb_rows = group_times_by_row(eb_items)
     
     # Use header centers if available, otherwise fall back to fullest row
+    # We expect 14 columns for PATCO (all 14 stations including terminals)
+    EXPECTED_COLS = 14
+    
     def get_column_centers(header_centers, rows):
-        if header_centers:
+        if header_centers and len(header_centers) == EXPECTED_COLS:
             return header_centers
-        # Fallback: use fullest row
+        # Fallback: use fullest row with expected column count
         if not rows:
             return []
         fullest_row = max(rows, key=len)
-        return detect_column_centers(fullest_row)
+        return detect_column_centers(fullest_row, expected_cols=EXPECTED_COLS)
     
     wb_columns = get_column_centers(wb_header_centers, wb_rows)
     eb_columns = get_column_centers(eb_header_centers, eb_rows)
@@ -314,9 +335,26 @@ def detect_page_sections(page) -> list[dict]:
     sections = []
     
     if "SATURDAY" in text.upper() and "SUNDAY" in text.upper():
-        mid_y = page.height / 2
-        sections.append({'name': 'saturday', 'y_start': 40, 'y_end': mid_y})
-        sections.append({'name': 'sunday', 'y_start': mid_y + 20, 'y_end': page.height - 40})
+        # Find Y position of "SUNDAY" header for accurate split
+        split_y = page.height / 2  # Fallback
+        
+        words = page.extract_words(x_tolerance=2, y_tolerance=2)
+        sunday_header = None
+        for w in words:
+            if w['text'].upper() == 'SUNDAY':
+                # Sanity check: Sunday header should be roughly in the middle or later
+                if w['top'] > page.height * 0.3: 
+                    sunday_header = w
+                    break
+        
+        if sunday_header:
+            split_y = sunday_header['top']
+            print(f"DEBUG: Found SUNDAY header at y={split_y}")
+        else:
+            print("DEBUG: SUNDAY header not found! Using fallback.")
+            
+        sections.append({'name': 'saturday', 'y_start': 40, 'y_end': split_y - 10})
+        sections.append({'name': 'sunday', 'y_start': split_y, 'y_end': page.height - 40})
     elif "SATURDAY" in text.upper():
         sections.append({'name': 'saturday', 'y_start': 40, 'y_end': page.height - 40})
     elif "SUNDAY" in text.upper():
