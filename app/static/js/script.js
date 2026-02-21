@@ -1,36 +1,73 @@
 let currentStation = localStorage.getItem('patco_station') || '';
 let currentDirection = localStorage.getItem('patco_direction') || 'eastbound';
 
+// The loaded JSON data
+let patcoData = null;
+
 // Initialize UI immediate state to prevent flash
-// 1. Set active direction button
 const activeBtn = document.querySelector(`.direction-btn[data-direction="${currentDirection}"]`);
 if (activeBtn) activeBtn.classList.add('active');
 
-// 2. Pre-set station dropdown if we have a saved value
 if (currentStation) {
     const select = document.getElementById('stationSelect');
-    if (select) select.innerHTML = `<option value="${currentStation}" selected>${currentStation}</option>`;
+    if (select) select.value = currentStation;
 }
+
+// Ensure the station dropdown loads in the correct order for the cached direction before the data fetch finishes
+updateStationOrder();
+
 let refreshInterval;
 let currentTrainColor = '#22c55e'; // Default to green
 let isListExpanded = false; // Track expanded state
-let timeOffset = 0; // Server time offset (server time - client time)
-let stationsData = null; // Global cache for station data to allow re-rendering
+let lastFetchTime = 0;
+const DATA_REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutes
 
-// Cache for train data (both directions)
-let trainDataCache = {
-    eastbound: null,
-    westbound: null,
-    lastStation: null
-};
+// We don't need timeOffset because we'll just use the client's clock,
+// but we do need to calculate durations based on America/New_York time
+// since the schedules are in New York time.
+// Actually, it's easier to just convert New York time to local time, 
+// or evaluate the time difference in absolute milliseconds.
+function getNYDate(date = new Date()) {
+    return new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+}
 
-// Format time: "10:29A" -> "10:29 AM"
+// Convert "4:30A" into a comparable Date object using today's date in NY
+// Parse "HH:MM[A/P]" into a Date object based on nyDate.
+// We pass an explicitly tracked dayOffset to handle overnight wraps.
+function parseTime(timeStr, nyDate, dayOffset = 0) {
+    if (!timeStr || !timeStr.match(/([AP])$/)) return null;
+
+    let [hoursStr, minutesStr] = timeStr.slice(0, -1).split(':');
+    let hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
+    const suffix = timeStr.slice(-1);
+
+    if (suffix === 'P' && hours !== 12) hours += 12;
+    if (suffix === 'A' && hours === 12) hours = 0;
+
+    const d = new Date(nyDate);
+    d.setHours(hours, minutes, 0, 0);
+
+    if (dayOffset > 0) {
+        d.setDate(d.getDate() + dayOffset);
+    }
+
+    return d;
+}
+
+// Determine if we need to look at weekday, saturday, or sunday
+function getScheduleType(nyDate) {
+    const day = nyDate.getDay();
+    if (day === 6) return 'saturday';
+    if (day === 0) return 'sunday';
+    return 'weekday';
+}
+
 function formatTime(timeStr) {
     if (!timeStr) return timeStr;
     return timeStr.replace(/([AP])$/, ' $1M');
 }
 
-// Format minutes: show hours for times > 60 min
 function formatMinutes(mins) {
     if (mins <= 1) return '< 1 minute';
     if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''}`;
@@ -42,7 +79,6 @@ function formatMinutes(mins) {
     return `${hours} hr ${remainingMins} min`;
 }
 
-// Toggle show more trains
 function toggleMoreTrains(btn) {
     const hiddenList = document.getElementById('hiddenTrains');
     if (hiddenList.style.display === 'none') {
@@ -56,33 +92,24 @@ function toggleMoreTrains(btn) {
     }
 }
 
-// Get color based on time remaining (green -> yellow -> red)
-// maxMins: time at which color is fully green (15 mins)
 function getTimeColor(mins, maxMins = 15) {
-    if (mins > 60) return '#3b82f6'; // Blue for > 1 hour
-
-    // Transition from Light Green (at 15m) to Dark Green (at 60m)
+    if (mins > 60) return '#3b82f6';
     if (mins > maxMins) {
-        // Interpolate: Light Green (34, 197, 94) -> Dark Green (21, 128, 61)
         const t = (mins - maxMins) / (60 - maxMins);
         const r = Math.round(34 + (21 - 34) * t);
         const g = Math.round(197 + (128 - 197) * t);
         const b = Math.round(94 + (61 - 94) * t);
         return `rgb(${r},${g},${b})`;
     }
-
-    if (mins <= 1) return '#ef4444'; // red
-
+    if (mins <= 1) return '#ef4444';
     const ratio = mins / maxMins;
     if (ratio > 0.5) {
-        // green to yellow (ratio 1.0 -> 0.5)
         const t = (ratio - 0.5) / 0.5;
         const r = Math.round(234 + (34 - 234) * t);
         const g = Math.round(179 + (197 - 179) * t);
         const b = Math.round(8 + (94 - 8) * t);
         return `rgb(${r},${g},${b})`;
     } else {
-        // yellow to red (ratio 0.5 -> 0.0)
         const t = ratio / 0.5;
         const r = Math.round(239 + (234 - 239) * t);
         const g = Math.round(68 + (179 - 68) * t);
@@ -91,107 +118,232 @@ function getTimeColor(mins, maxMins = 15) {
     }
 }
 
-// Fetch stations and populate dropdown
-async function loadStations() {
+async function loadData() {
     try {
-        const res = await fetch('/api/stations');
-        stationsData = await res.json();
-        renderStationDropdown();
+        updateTrains(); // This will show the spinner ONLY if a station is already selected, else "Select a station"
 
-        if (currentStation) {
-            loadTrains();
-        }
+        // Append timestamp to bypass aggressive browser caching for the changing data payload
+        const res = await fetch(`https://raw.githubusercontent.com/humzakh/patcoschedule/data/patco_data.json?t=${new Date().getTime()}`);
+        patcoData = await res.json();
+        lastFetchTime = Date.now();
+        updateTrains();
     } catch (err) {
-        console.error('Failed to load stations:', err);
+        console.error('Failed to load PATCO data:', err);
+        document.getElementById('trainInfo').innerHTML = `
+            <div class="card error">
+                <p>Failed to load schedule data</p>
+                <p style="font-size: 0.8rem; margin-top: 0.5rem;">Please check your connection and refresh the page.</p>
+            </div>
+        `;
     }
 }
 
-// Render station dropdown based on current direction
-function renderStationDropdown() {
-    if (!stationsData) return;
-
+function updateStationOrder() {
     const select = document.getElementById('stationSelect');
-    const savedValue = select.value || currentStation; // Persist selection
+    const paGrp = document.getElementById('pa-stations');
+    const njGrp = document.getElementById('nj-stations');
 
-    // Clear existing options
-    select.innerHTML = '';
-
-    // Add default option
-    const defaultOption = document.createElement('option');
-    defaultOption.value = "";
-    defaultOption.textContent = "Select a station...";
-    defaultOption.disabled = true;
-    defaultOption.selected = true;
-    defaultOption.hidden = true;
-    select.appendChild(defaultOption);
-
-    // Clone data to avoid mutating global cache
-    let groups = [];
-    if (stationsData.grouped) {
-        groups = JSON.parse(JSON.stringify(stationsData.grouped));
-    }
-
-    // If Eastbound, we want to reverse the logical order (PA -> NJ)
-    // Default (Westbound) is NJ -> PA
-    if (currentDirection === 'eastbound') {
-        groups.reverse(); // Flip group order
-        groups.forEach(group => {
-            group.stations.reverse(); // Flip stations within group
-        });
-    }
-
-    if (groups.length > 0) {
-        groups.forEach(group => {
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = group.label;
-
-            group.stations.forEach(station => {
-                const option = document.createElement('option');
-                option.value = station;
-                option.textContent = station;
-                if (station === savedValue) option.selected = true;
-                optgroup.appendChild(option);
-            });
-
-            select.appendChild(optgroup);
-        });
+    // Make sure we select the cached station immediately if one exists
+    if (currentStation) {
+        select.value = currentStation;
     } else {
-        // Fallback to flat list
-        let stations = [...stationsData.westbound];
-        if (currentDirection === 'eastbound') {
-            stations.reverse();
-        }
-        stations.forEach(station => {
-            const option = document.createElement('option');
-            option.value = station;
-            option.textContent = station;
-            if (station === savedValue) option.selected = true;
-            select.appendChild(option);
-        });
+        select.value = "";
     }
 
-    // Explicitly set value again to be sure
-    if (savedValue) {
-        select.value = savedValue;
+    // The HTML is hardcoded in the Eastbound sequence.
+    // We visually reverse the station list so it flows logically with the user's travel direction.
+    const reverseOptions = (grp) => {
+        const options = Array.from(grp.children);
+        options.reverse().forEach(opt => grp.appendChild(opt));
+    };
+
+    // Sort container order and internal option order
+    if (currentDirection === 'eastbound') {
+        // PA comes first when headed east
+        select.appendChild(paGrp);
+        select.appendChild(njGrp);
+
+        // If they are currently in westbound "reversed" state, flip them back
+        if (paGrp.dataset.reversed === "true") {
+            reverseOptions(paGrp);
+            reverseOptions(njGrp);
+            paGrp.dataset.reversed = "false";
+        }
+    } else {
+        // NJ comes first when headed west
+        select.appendChild(njGrp);
+        select.appendChild(paGrp);
+
+        // If they are currently in eastbound "normal" state, flip them to reversed
+        if (paGrp.dataset.reversed !== "true") {
+            reverseOptions(paGrp);
+            reverseOptions(njGrp);
+            paGrp.dataset.reversed = "true";
+        }
     }
 }
 
-// Load next trains
-async function loadTrains(showLoading = true) {
+// Extract next N trains from our local data structure
+function getNextTrainsForDirection(station, direction, count = 20) {
+    if (!patcoData || !station) return null;
+
+    const now = new Date();
+    const nyNow = getNYDate(now);
+
+    let upcoming = [];
+
+    // --- HELPER FUNCTION ---
+    function scanScheduleDay(scanDate, isTomorrow) {
+        if (upcoming.length >= count) return;
+
+        // 1. Find the literal matrix data for this exact scanDate
+        const dateStr = [
+            scanDate.getFullYear(),
+            String(scanDate.getMonth() + 1).padStart(2, '0'),
+            String(scanDate.getDate()).padStart(2, '0')
+        ].join('-');
+        const mm_dd = `${String(scanDate.getMonth() + 1).padStart(2, '0')}-${String(scanDate.getDate()).padStart(2, '0')}`;
+
+        let matrix = null;
+        let scheduleName = null;
+        let scheduleUrl = "";
+
+        // Check special
+        if (patcoData.schedules.special) {
+            for (const key of Object.keys(patcoData.schedules.special)) {
+                if (key.includes(dateStr) || key.includes(mm_dd)) {
+                    matrix = patcoData.schedules.special[key][direction];
+                    scheduleName = `Special (${mm_dd})`;
+                    scheduleUrl = patcoData.schedules.special[key].url || "https://www.ridepatco.org/schedules/";
+                    break;
+                }
+            }
+        }
+
+        // Check standard fallback
+        if (!matrix) {
+            const typ = getScheduleType(scanDate);
+            if (patcoData.schedules.standard[direction][typ]) {
+                matrix = patcoData.schedules.standard[direction][typ];
+                scheduleName = typ;
+                scheduleUrl = patcoData.standard_url;
+                if (typ === 'weekday') scheduleUrl += '#page=1';
+                else scheduleUrl += '#page=2';
+            }
+        }
+
+        if (!matrix) return; // No schedule for this day
+
+        const headers = matrix[0];
+        const stIdx = headers.indexOf(station);
+        if (stIdx === -1) return;
+
+        // 2. Set the exact time floor to compare against
+        const cmpTime = new Date(scanDate);
+        if (isTomorrow) {
+            // If scanning tomorrow, we want all trains from 00:00 onwards
+            cmpTime.setHours(0, 0, 0, 0);
+        } else {
+            // If scanning today, we want trains from RIGHT NOW onwards
+            cmpTime.setHours(nyNow.getHours(), nyNow.getMinutes(), 0, 0);
+        }
+
+        // 3. Scan the rows maintaining chronological awareness
+        let prevMins = -1;
+        let dayOffset = 0;
+
+        for (let i = 1; i < matrix.length; i++) {
+            const timeStr = matrix[i][stIdx];
+            if (!timeStr) continue;
+
+            const suffix = timeStr.slice(-1);
+            if (suffix === 'A' || suffix === 'P') {
+                let [hStr, mStr] = timeStr.slice(0, -1).split(':');
+                let h = parseInt(hStr, 10);
+                let m = parseInt(mStr, 10);
+                if (suffix === 'P' && h !== 12) h += 12;
+                if (suffix === 'A' && h === 12) h = 0;
+
+                const thisMins = (h * 60) + m;
+
+                // If the time drastically regresses (e.g. 11:53 PM [1433] to 12:13 AM [13]), we crossed midnight
+                if (prevMins !== -1 && thisMins < prevMins - 120) {
+                    dayOffset++;
+                }
+                prevMins = thisMins;
+            }
+
+            // Generate an exact Date object for `timeStr` occurring on `scanDate`
+            // Pass dayOffset to natively handle overnight rollovers
+            const tData = parseTime(timeStr, scanDate, dayOffset);
+
+            if (tData && tData >= cmpTime) {
+                // Determine minutes from actual right now
+                const msDiff = tData.getTime() - nyNow.getTime();
+                const mins = Math.ceil(msDiff / 60000);
+
+                upcoming.push({
+                    time: timeStr,
+                    minutes: mins,
+                    is_tomorrow: isTomorrow || dayOffset > 0,
+                    is_carryover: !isTomorrow && dayOffset > 0,
+                    schedule: scheduleName,
+                    schedule_url: scheduleUrl
+                });
+
+                if (upcoming.length >= count) return;
+            }
+        }
+    }
+
+    // --- EXECUTION ---
+    // Scan Today First
+    scanScheduleDay(new Date(nyNow), false);
+
+    // If we are still short, explicitly scan Tomorrow
+    if (upcoming.length < count) {
+        const tomorrow = new Date(nyNow);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0); // Start of tomorrow
+        scanScheduleDay(tomorrow, true);
+    }
+
+    if (upcoming.length === 0) return null;
+
+    return {
+        station: station,
+        direction: direction,
+        trains: upcoming,
+        schedule: upcoming[0].schedule
+    };
+}
+
+
+function updateTrains(showLoading = false) {
+    if (!patcoData) {
+        if (currentStation) {
+            document.getElementById('trainInfo').innerHTML = `
+            <div class="card loading">
+                <div class="spinner"></div>
+                <p>Fetching schedule data...</p>
+            </div>
+            `;
+        } else {
+            document.getElementById('trainInfo').innerHTML = `
+            <div class="card loading">
+                <p>Select a station to see train times</p>
+            </div>
+            `;
+        }
+        return;
+    }
+
     if (!currentStation) {
         document.getElementById('trainInfo').innerHTML = `
         <div class="card loading">
             <p>Select a station to see train times</p>
         </div>
     `;
-        return;
-    }
-
-    // Check if we have cached data for this station and direction
-    if (trainDataCache.lastStation === currentStation && trainDataCache[currentDirection]) {
-        renderTrains(trainDataCache[currentDirection]);
-        // Fetch fresh data in background
-        fetchBothDirections(true);
         return;
     }
 
@@ -204,75 +356,42 @@ async function loadTrains(showLoading = true) {
     `;
     }
 
-    await fetchBothDirections(showLoading);
-}
+    const eastbound = getNextTrainsForDirection(currentStation, 'eastbound');
+    const westbound = getNextTrainsForDirection(currentStation, 'westbound');
 
-// Fetch train data for both directions
-async function fetchBothDirections(updateUI = true) {
+    const getDirColor = (d) => {
+        if (!d || !d.trains || d.trains.length === 0) return '#22c55e';
+        return getTimeColor(d.trains[0].minutes);
+    }
+
+    const eastColor = getDirColor(eastbound);
+    const westColor = getDirColor(westbound);
+
+    document.documentElement.style.setProperty('--east-color', eastColor);
+    document.documentElement.style.setProperty('--west-color', westColor);
+
+    const currentData = currentDirection === 'eastbound' ? eastbound : westbound;
     try {
-        const res = await fetch(`/api/next?station=${encodeURIComponent(currentStation)}&direction=both&count=20`);
-        const data = await res.json();
-
-        if (data.error) throw new Error(data.error);
-
-        // Update cache
-        trainDataCache.lastStation = currentStation;
-        trainDataCache.eastbound = data.eastbound || null;
-        trainDataCache.westbound = data.westbound || null;
-
-        // Sync server time
-        if (data.server_time_iso) {
-            syncServerTime(data.server_time_iso);
+        if (currentData) {
+            renderTrains(currentData);
+        } else {
+            throw new Error('No service for this direction');
         }
-
-        // Update direction colors for hover effects
-        const getDirColor = (d) => {
-            if (!d || !d.trains || d.trains.length === 0) return '#22c55e';
-            return getTimeColor(d.trains[0].minutes);
-        }
-
-        const eastColor = getDirColor(trainDataCache.eastbound);
-        const westColor = getDirColor(trainDataCache.westbound);
-
-        document.documentElement.style.setProperty('--east-color', eastColor);
-        document.documentElement.style.setProperty('--west-color', westColor);
-
-        // Render
-        if (updateUI) {
-            const currentData = trainDataCache[currentDirection];
-            if (currentData) {
-                renderTrains(currentData);
-            } else {
-                if ((currentDirection == 'eastbound' && !data.eastbound) || (currentDirection == 'westbound' && !data.westbound)) {
-                    throw new Error('No service for this direction');
-                }
-                throw new Error('No data available');
-            }
-        }
-
     } catch (err) {
         document.getElementById('trainInfo').innerHTML = `
-        <div class="card error">
-            <p>Failed to load train times</p>
-            <p style="font-size: 0.8rem; margin-top: 0.5rem;">${err.message}</p>
-        </div>
-        `;
+         <div class="card error">
+             <p>Failed to load train times</p>
+             <p style="font-size: 0.8rem; margin-top: 0.5rem;">${err.message}</p>
+         </div>
+         `;
     }
 }
 
-// Helper to sync server time and countdown
-function syncServerTime(isoTime) {
-    const serverTime = new Date(isoTime).getTime();
-    const clientTime = Date.now();
-    timeOffset = serverTime - clientTime;
-
-    // Force resync countdown with new precise server time
-    refreshCountdown = 60 - getServerTime().getSeconds();
-    if (refreshCountdown <= 0) refreshCountdown = 60;
-    updateRefreshRing();
+// We no longer fetch from /api/next, so loadTrains just invokes the local logic
+function loadTrains(showLoading = true) {
+    updateTrains(showLoading);
 }
 
-// Render train information
 function renderTrains(data) {
     if (!data.trains || data.trains.length === 0) {
         document.getElementById('trainInfo').innerHTML = `
@@ -288,7 +407,6 @@ function renderTrains(data) {
     const next = data.trains[0];
     const upcoming = data.trains.slice(1);
 
-    // Determine badge class based on schedule type
     const getBadgeClass = (schedule) => {
         if (schedule.toLowerCase().includes('special')) return 'special';
         if (schedule === 'weekday') return 'weekday';
@@ -298,14 +416,19 @@ function renderTrains(data) {
     };
     const badgeClass = getBadgeClass(next.schedule);
 
-
-
-    // Get dynamic color based on time remaining
     const countdownColor = getTimeColor(next.minutes);
-    currentTrainColor = countdownColor; // Store for refresh ring
+    currentTrainColor = countdownColor;
 
-    // Different display for trains more than 1 hour away
     const isLongWait = next.minutes >= 60;
+
+    // Format the top-level today schedule badge
+    let displayNextSchedule = next.schedule;
+    if (displayNextSchedule.startsWith('Special (')) {
+        // Convert "Special (02-23)" to "Special Schedule (02/23)"
+        displayNextSchedule = displayNextSchedule.replace('Special (', 'Special Schedule (').replace('-', '/');
+    } else {
+        displayNextSchedule = displayNextSchedule + (displayNextSchedule.toLowerCase().includes('schedule') ? '' : ' schedule');
+    }
 
     let html = `
     <div class="card next-train-card">
@@ -330,7 +453,7 @@ function renderTrains(data) {
             </div>
             <span>Refreshing in <span id="refreshCountdown">${refreshCountdown}s</span></span>
         </div>
-        ${next.schedule_url ? `<a href="${next.schedule_url}" target="_blank" class="schedule-badge ${badgeClass}">${next.schedule}${next.schedule.toLowerCase().includes('schedule') ? '' : ' schedule'} ↗</a>` : `<div class="schedule-badge ${badgeClass}">${next.schedule}${next.schedule.toLowerCase().includes('schedule') ? '' : ' schedule'}</div>`}
+        ${next.schedule_url ? `<a href="${next.schedule_url}" target="_blank" class="schedule-badge ${badgeClass}">${displayNextSchedule} ↗</a>` : `<div class="schedule-badge ${badgeClass}">${displayNextSchedule}</div>`}
     </div>
 `;
 
@@ -340,40 +463,37 @@ function renderTrains(data) {
         const visibleTrains = upcoming.slice(0, initialCount);
         const hiddenTrains = upcoming.slice(initialCount);
 
-        // Identify the last "today" train to style its border
-        // We do this on the full 'upcoming' list so it works across the split
         for (let i = 0; i < upcoming.length; i++) {
             if (!upcoming[i].is_tomorrow) {
-                // Only add border if the NEXT one is explicitly tomorrow (meaning we have a transition)
-                // If it's simply the last item in the list, we don't add the border
                 if (upcoming[i + 1] && upcoming[i + 1].is_tomorrow) {
                     upcoming[i].isLastToday = true;
-                    break; // Found it
+                    break;
                 }
             }
         }
 
-        // Track if header has been shown
         let tomorrowHeaderRendered = false;
 
-        // Helper to render list with header injection
         const renderInfos = (list) => {
             return list.map(train => {
                 let html = '';
-                // Inject header if this is the first tomorrow train AND the main card isn't already tomorrow
-                // If main card is tomorrow, the whole list is tomorrow, so no separator needed
                 if (train.is_tomorrow && !tomorrowHeaderRendered && !next.is_tomorrow) {
                     tomorrowHeaderRendered = true;
-                    const schedBadge = train.schedule !== next.schedule ?
-                        `<span class="upcoming-schedule ${getBadgeClass(train.schedule)}">${train.schedule}</span>` : '';
 
-                    // Use the train's schedule badge for the header
+                    // Find the primary schedule for tomorrow (not a carryover train)
+                    let primaryTomorrowTrain = upcoming.find(t => t.is_tomorrow && !t.is_carryover) || train;
+                    let displayScheduleText = primaryTomorrowTrain.schedule;
+                    if (displayScheduleText.startsWith('Special (')) {
+                        displayScheduleText = 'Special';
+                    }
+                    let displaySchedule = displayScheduleText + (displayScheduleText.toLowerCase().includes('schedule') ? '' : ' schedule');
+
                     html += `
                     <li class="upcoming-header">
                         <span>Tomorrow</span>
-                        ${train.schedule_url ?
-                            `<a href="${train.schedule_url}" target="_blank" class="upcoming-schedule ${getBadgeClass(train.schedule)}">${train.schedule} ↗</a>` :
-                            `<span class="upcoming-schedule ${getBadgeClass(train.schedule)}">${train.schedule}</span>`
+                        ${primaryTomorrowTrain.schedule_url ?
+                            `<a href="${primaryTomorrowTrain.schedule_url}" target="_blank" class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule} ↗</a>` :
+                            `<span class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule}</span>`
                         }
                     </li>
                 `;
@@ -408,25 +528,20 @@ function renderTrains(data) {
 
     document.getElementById('trainInfo').innerHTML = html;
 
-    // Update direction button color based on next train time
     const activeBtn = document.querySelector('.direction-btn.active');
     if (activeBtn) {
         activeBtn.style.background = countdownColor;
-        // Parse color for shadow (handle both hex and rgb)
         let shadowColor = countdownColor;
         if (countdownColor.startsWith('#')) {
-            shadowColor = countdownColor + '66'; // Add alpha for hex
+            shadowColor = countdownColor + '66';
         } else {
-            // Convert rgb to rgba
             shadowColor = countdownColor.replace('rgb(', 'rgba(').replace(')', ', 0.4)');
         }
         activeBtn.style.boxShadow = `0 4px 15px ${shadowColor}`;
     }
 
-    // Set severity color CSS variable for hover states
     document.documentElement.style.setProperty('--severity-color', countdownColor);
 
-    // Restore expanded state if it was expanded before refresh
     if (isListExpanded) {
         const hiddenList = document.getElementById('hiddenTrains');
         const btn = document.querySelector('.show-more-btn');
@@ -437,7 +552,6 @@ function renderTrains(data) {
     }
 }
 
-// Event listeners
 document.getElementById('stationSelect').addEventListener('change', (e) => {
     currentStation = e.target.value;
     localStorage.setItem('patco_station', currentStation);
@@ -448,7 +562,6 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.direction-btn').forEach(b => {
             b.classList.remove('active');
-            // Reset inline styles on non-active buttons
             b.style.background = '';
             b.style.boxShadow = '';
         });
@@ -456,19 +569,11 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
         currentDirection = btn.dataset.direction;
         localStorage.setItem('patco_direction', currentDirection);
 
-        // Update station dropdown order
-        renderStationDropdown();
-
-        // Use cached data if available for instant switching
-        if (trainDataCache.lastStation === currentStation && trainDataCache[currentDirection]) {
-            renderTrains(trainDataCache[currentDirection]);
-        } else {
-            loadTrains();
-        }
+        updateStationOrder();
+        loadTrains(false);
     });
 });
 
-// Set initial direction button state
 document.querySelectorAll('.direction-btn').forEach(btn => {
     if (btn.dataset.direction === currentDirection) {
         btn.classList.add('active');
@@ -477,29 +582,19 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
     }
 });
 
-// Refresh countdown
-const REFRESH_INTERVAL = 60; // 60s total circle
-let refreshCountdown = 60 - new Date().getSeconds(); // Initial backup before server sync
-const circumference = 2 * Math.PI * 8; // r=8
-
-// Helper to get server time
-function getServerTime() {
-    return new Date(Date.now() + timeOffset);
-}
+const REFRESH_INTERVAL = 60;
+let refreshCountdown = 60 - new Date().getSeconds();
+const circumference = 2 * Math.PI * 8;
 
 function updateRefreshRing() {
     const progress = document.querySelector('.refresh-ring .progress');
     const countdownEl = document.getElementById('refreshCountdown');
     if (progress && countdownEl) {
-        // Scale based on 60 second minute
         const offset = circumference * (1 - refreshCountdown / REFRESH_INTERVAL);
         progress.style.strokeDashoffset = offset;
-        // Use same color as train countdown
         progress.style.stroke = currentTrainColor;
         countdownEl.textContent = refreshCountdown + 's';
 
-        // Ensure animation is enabled for updates
-        // Using requestAnimationFrame to ensure the class is added after any potential DOM updates
         requestAnimationFrame(() => {
             progress.classList.add('animated');
         });
@@ -507,29 +602,33 @@ function updateRefreshRing() {
 }
 
 function startRefreshTimer() {
-    refreshCountdown = 60 - getServerTime().getSeconds();
+    refreshCountdown = 60 - new Date().getSeconds();
     updateRefreshRing();
 }
 
-// Initial load
-loadStations();
+// Kickoff
+loadData();
 
-// Refresh on visibility change (when switching tabs/apps)
+setInterval(() => {
+    loadData();
+}, DATA_REFRESH_INTERVAL);
+
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && currentStation) {
-        loadTrains();
+    if (document.visibilityState === 'visible') {
+        if (currentStation) loadTrains(false);
+        if (Date.now() - lastFetchTime > DATA_REFRESH_INTERVAL) {
+            loadData();
+        }
     }
 });
 startRefreshTimer();
 
-// Countdown tick every second
 setInterval(() => {
     refreshCountdown--;
     if (refreshCountdown <= 0) {
-        loadTrains(false);  // Skip loading spinner on auto-refresh
-        // Resync with server time on minute boundary (should be ~60)
-        refreshCountdown = 60 - getServerTime().getSeconds();
-        if (refreshCountdown <= 0) refreshCountdown = 60; // Safety
+        loadTrains(false);
+        refreshCountdown = 60 - new Date().getSeconds();
+        if (refreshCountdown <= 0) refreshCountdown = 60;
     }
     updateRefreshRing();
 }, 1000);

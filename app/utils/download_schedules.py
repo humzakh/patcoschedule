@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 
 
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
-OUTPUT_DIR = Path(__file__).parent.parent / "schedules" / "source_pdfs"
+OUTPUT_DIR = Path(__file__).parent.parent.parent / "data" / "schedules" / "source_pdfs"
 PDF_DIR_STANDARD = OUTPUT_DIR / "standard"
 PDF_DIR_SPECIAL = OUTPUT_DIR / "special"
 MAX_AGE_DAYS = 7

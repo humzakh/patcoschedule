@@ -1,0 +1,38 @@
+name: Deploy Site to GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Cache-bust asset URLs
+        run: sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html
+      - name: Stage site files
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp manifest.json _site/
+          cp CNAME _site/
+          cp -r app _site/app
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
