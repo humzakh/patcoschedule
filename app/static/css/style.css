@@ -1,28 +1,28 @@
 @font-face {
     font-family: 'BlinkMacSystemFont';
-    src: url('/static/fonts/BlinkMacSystemFont-Regular.woff2') format('woff2');
-    font-weight: 400;
+    src: url('../fonts/BlinkMacSystemFont-Regular.woff2') format('woff2');
+    font-weight: normal;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'BlinkMacSystemFont';
-    src: url('/static/fonts/BlinkMacSystemFont-Medium.woff2') format('woff2');
+    src: url('../fonts/BlinkMacSystemFont-Medium.woff2') format('woff2');
     font-weight: 500;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'BlinkMacSystemFont';
-    src: url('/static/fonts/BlinkMacSystemFont-Semibold.woff2') format('woff2');
+    src: url('../fonts/BlinkMacSystemFont-Semibold.woff2') format('woff2');
     font-weight: 600;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'BlinkMacSystemFont';
-    src: url('/static/fonts/BlinkMacSystemFont-Bold.woff2') format('woff2');
-    font-weight: 700;
+    src: url('../fonts/BlinkMacSystemFont-Bold.woff2') format('woff2');
+    font-weight: bold;
     font-style: normal;
 }
 
@@ -81,7 +81,7 @@ header {
     /* 0.75em * (250/35) */
     display: inline-block;
     vertical-align: -3%;
-    background-image: url('/static/images/patco.svg');
+    background-image: url('../images/patco.svg');
     background-size: contain;
     background-repeat: no-repeat;
     pointer-events: none;
@@ -142,8 +142,6 @@ select {
 
 select:focus {
     outline: none;
-    border-color: var(--patco-red);
-    box-shadow: 0 0 0 3px var(--glow);
 }
 
 select option {
@@ -158,7 +156,8 @@ select option {
 
 .direction-btn {
     flex: 1;
-    padding: 0.875rem 1rem;
+    position: relative;
+    padding: 0.6rem 0.5rem;
     font-size: 0.9rem;
     font-family: inherit;
     font-weight: 500;
@@ -168,15 +167,79 @@ select option {
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.direction-btn[data-direction="westbound"] .btn-text {
+    padding-left: 1.5rem;
+}
+
+.direction-btn[data-direction="eastbound"] .btn-text {
+    padding-right: 1.5rem;
+}
+
+.direction-btn .btn-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.2;
+}
+
+.direction-btn .btn-dir {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.direction-btn .btn-dest {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    font-weight: 400;
+}
+
+.direction-btn .btn-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s ease-out, color 0.15s ease;
+
+    /* Force GPU texture rendering for smooth Windows subpixel animation */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+.direction-btn[data-direction="westbound"] .btn-arrow {
+    left: 0.75rem;
+}
+
+.direction-btn[data-direction="eastbound"] .btn-arrow {
+    right: 0.75rem;
+}
+
+.direction-btn[data-direction="westbound"]:not(.active):hover .btn-arrow {
+    transform: translate(1px, -50%);
+    /* hardware accelerated minimum integer shift right */
+}
+
+.direction-btn[data-direction="eastbound"]:not(.active):hover .btn-arrow {
+    transform: translate(-1px, -50%);
+    /* hardware accelerated minimum integer shift left */
 }
 
 .direction-btn[data-direction="eastbound"]:not(.active):hover {
     border-color: var(--east-color, var(--patco-red));
+    box-shadow: inset 0 0 0 1px var(--east-color, var(--patco-red));
     color: var(--east-color, var(--text-primary));
 }
 
 .direction-btn[data-direction="westbound"]:not(.active):hover {
     border-color: var(--west-color, var(--patco-red));
+    box-shadow: inset 0 0 0 1px var(--west-color, var(--patco-red));
     color: var(--west-color, var(--text-primary));
 }
 
@@ -237,8 +300,6 @@ select option {
     display: inline-block;
     padding: 0.25rem 0.75rem;
     font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--patco-red);
@@ -317,7 +378,8 @@ a.schedule-badge:hover {
     gap: 0.5rem;
 }
 
-.upcoming-item:last-child {
+/* Only remove padding and border if it's the very last list in the card */
+.upcoming-list:last-of-type .upcoming-item:last-child {
     border-bottom: none;
     padding-bottom: 0;
 }
@@ -331,13 +393,12 @@ a.schedule-badge:hover {
 }
 
 #hiddenTrains {
-    border-top: 1px solid var(--border-color);
-    margin-top: 1rem;
+    margin-top: 0;
     padding-top: 0;
 }
 
 #hiddenTrains .upcoming-item:first-child {
-    padding-top: 1rem;
+    padding-top: 0.75rem;
 }
 
 .upcoming-time {
@@ -389,6 +450,11 @@ a.schedule-badge:hover {
 .upcoming-header:first-child {
     margin-top: 0;
     padding-top: 0;
+}
+
+#hiddenTrains .upcoming-header:first-child {
+    margin-top: 1rem;
+    padding-top: 1rem;
 }
 
 a.upcoming-schedule:hover {
@@ -457,6 +523,7 @@ a.upcoming-schedule.sunday:hover {
 
 .show-more-btn:hover {
     border-color: var(--severity-color, var(--patco-red));
+    box-shadow: inset 0 0 0 1px var(--severity-color, var(--patco-red));
     color: var(--text-primary);
 }
 
