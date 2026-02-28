@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-28T03:08:11.104470",
+  "last_updated": "2026-02-28T03:55:56.015187",
   "standard_url": "https://www.ridepatco.org/pdf/PATCO_Timetable_2025-12-01.pdf",
   "stations": {
     "westbound": [
@@ -6184,7 +6184,7 @@
     },
     "special": {
       "2026-02-28_FlowerShow_saturday": {
-        "url": "https://www.ridepatco.org/schedules/",
+        "url": "https://www.ridepatco.org/schedules/2026-02-28_FlowerShow.pdf",
         "eastbound": [
           [
             "15/16th & Locust",
@@ -8527,7 +8527,7 @@
         ]
       },
       "2026-03-01_FlowerShow_sunday": {
-        "url": "https://www.ridepatco.org/schedules/",
+        "url": "https://www.ridepatco.org/schedules/2026-03-01_FlowerShow.pdf",
         "eastbound": [
           [
             "15/16th & Locust",
