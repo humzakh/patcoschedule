@@ -40,7 +40,7 @@
 
         <div class="card">
             <div class="selector-group">
-                <label>Station</label>
+                <label>Origin</label>
                 <select id="stationSelect">
                     <option value="" disabled selected hidden>Select a station...</option>
                     <optgroup id="pa-stations" label="Philadelphia">
@@ -81,6 +81,33 @@
                         <span class="btn-arrow">→</span>
                     </button>
                 </div>
+            </div>
+            <div class="selector-group" id="destinationGroup" style="display: none;">
+                <div class="label-row">
+                    <label>Destination <span class="optional-label">(optional)</span></label>
+                    <button id="clearDestination" class="clear-btn" style="opacity: 0; pointer-events: none;"> CLEAR &nbsp;✕ </button>
+                </div>
+                <select id="destinationSelect">
+                    <option value="">No destination</option>
+                    <optgroup id="dest-pa-stations" label="Philadelphia">
+                        <option value="15/16th &amp; Locust">15/16th &amp; Locust</option>
+                        <option value="12/13th &amp; Locust">12/13th &amp; Locust</option>
+                        <option value="9/10th &amp; Locust">9/10th &amp; Locust</option>
+                        <option value="8th &amp; Market">8th &amp; Market</option>
+                        <option value="Franklin Square">Franklin Square</option>
+                    </optgroup>
+                    <optgroup id="dest-nj-stations" label="New Jersey">
+                        <option value="City Hall">City Hall</option>
+                        <option value="Broadway">Broadway</option>
+                        <option value="Ferry Avenue">Ferry Avenue</option>
+                        <option value="Collingswood">Collingswood</option>
+                        <option value="Westmont">Westmont</option>
+                        <option value="Haddonfield">Haddonfield</option>
+                        <option value="Woodcrest">Woodcrest</option>
+                        <option value="Ashland">Ashland</option>
+                        <option value="Lindenwold">Lindenwold</option>
+                    </optgroup>
+                </select>
             </div>
         </div>
 
