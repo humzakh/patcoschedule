@@ -1,5 +1,6 @@
 let currentStation = localStorage.getItem('patco_station') || '';
 let currentDirection = localStorage.getItem('patco_direction') || 'eastbound';
+let currentDestination = localStorage.getItem('patco_destination') || '';
 
 // The loaded JSON data
 let patcoData = null;
@@ -15,6 +16,7 @@ if (currentStation) {
 
 // Ensure the station dropdown loads in the correct order for the cached direction before the data fetch finishes
 updateStationOrder();
+updateDestinationDropdown();
 
 let refreshInterval;
 let currentTrainColor = '#22c55e'; // Default to green
@@ -126,6 +128,7 @@ async function loadData() {
         const res = await fetch(`https://raw.githubusercontent.com/humzakh/patcoschedule/data/patco_data.json?t=${new Date().getTime()}`);
         patcoData = await res.json();
         lastFetchTime = Date.now();
+        updateDestinationDropdown();
         updateTrains();
     } catch (err) {
         console.error('Failed to load PATCO data:', err);
@@ -181,6 +184,103 @@ function updateStationOrder() {
             paGrp.dataset.reversed = "true";
         }
     }
+}
+
+// Populate the destination dropdown with stations downstream of the selected origin
+function updateDestinationDropdown() {
+    const destGroup = document.getElementById('destinationGroup');
+    const destSelect = document.getElementById('destinationSelect');
+    const destPaGrp = document.getElementById('dest-pa-stations');
+    const destNjGrp = document.getElementById('dest-nj-stations');
+
+    if (!currentStation || !currentDirection) {
+        destGroup.style.display = 'none';
+        return;
+    }
+
+    // Show the destination group
+    destGroup.style.display = '';
+
+    // Get station order for current direction from loaded data, or use hardcoded fallback
+    let stationOrder;
+    if (patcoData && patcoData.stations && patcoData.stations[currentDirection]) {
+        stationOrder = patcoData.stations[currentDirection];
+    } else {
+        const westbound = ["Lindenwold", "Ashland", "Woodcrest", "Haddonfield", "Westmont",
+            "Collingswood", "Ferry Avenue", "Broadway", "City Hall", "Franklin Square",
+            "8th & Market", "9/10th & Locust", "12/13th & Locust", "15/16th & Locust"];
+        stationOrder = currentDirection === 'westbound' ? westbound : [...westbound].reverse();
+    }
+
+    const originIdx = stationOrder.indexOf(currentStation);
+
+    // Mirror the station dropdown ordering logic for optgroups
+    const reverseOptions = (grp) => {
+        const options = Array.from(grp.children);
+        options.reverse().forEach(opt => grp.appendChild(opt));
+    };
+
+    if (currentDirection === 'eastbound') {
+        destSelect.appendChild(destPaGrp);
+        destSelect.appendChild(destNjGrp);
+
+        if (destPaGrp.dataset.reversed === "true") {
+            reverseOptions(destPaGrp);
+            reverseOptions(destNjGrp);
+            destPaGrp.dataset.reversed = "false";
+        }
+    } else {
+        destSelect.appendChild(destNjGrp);
+        destSelect.appendChild(destPaGrp);
+
+        if (destPaGrp.dataset.reversed !== "true") {
+            reverseOptions(destPaGrp);
+            reverseOptions(destNjGrp);
+            destPaGrp.dataset.reversed = "true";
+        }
+    }
+
+    // Disable origin station and upstream stations; enable downstream stations
+    const allOptions = destSelect.querySelectorAll('option[value]:not([value=""])');
+    allOptions.forEach(opt => {
+        const stIdx = stationOrder.indexOf(opt.value);
+        if (opt.value === currentStation) {
+            opt.disabled = true;
+            opt.classList.add('origin-station');
+            opt.textContent = opt.value + ' \u2022 Origin';
+        } else if (stIdx >= 0 && stIdx <= originIdx) {
+            // Upstream station
+            opt.disabled = true;
+            opt.classList.remove('origin-station');
+            opt.textContent = opt.value;
+        } else {
+            // Downstream station
+            opt.disabled = false;
+            opt.classList.remove('origin-station');
+            opt.textContent = opt.value;
+        }
+    });
+
+    // Restore saved destination if still valid (must be downstream)
+    if (currentDestination) {
+        const destIdx = stationOrder.indexOf(currentDestination);
+        if (destIdx > originIdx) {
+            destSelect.value = currentDestination;
+        } else {
+            currentDestination = '';
+            localStorage.removeItem('patco_destination');
+            destSelect.value = '';
+        }
+    } else {
+        destSelect.value = '';
+    }
+
+    // Toggle clear button and "No destination" option
+    const noDestOption = destSelect.querySelector('option[value=""]');
+    const clearBtn = document.getElementById('clearDestination');
+    clearBtn.style.opacity = currentDestination ? '1' : '0';
+    clearBtn.style.pointerEvents = currentDestination ? '' : 'none';
+    if (noDestOption) noDestOption.style.display = currentDestination ? 'none' : '';
 }
 
 // Extract next N trains from our local data structure
@@ -282,13 +382,34 @@ function getNextTrainsForDirection(station, direction, count = 20) {
                 const msDiff = tData.getTime() - nyNow.getTime();
                 const mins = Math.ceil(msDiff / 60000);
 
+                // Look up arrival time at destination if one is selected
+                let arrivalTime = null;
+                let arrivalMinutes = null;
+                if (currentDestination) {
+                    const destIdx = headers.indexOf(currentDestination);
+                    if (destIdx !== -1) {
+                        const destTimeStr = matrix[i][destIdx];
+                        if (destTimeStr) {
+                            arrivalTime = destTimeStr;
+                            const arrData = parseTime(destTimeStr, scanDate, dayOffset);
+                            if (arrData) {
+                                arrivalMinutes = Math.ceil((arrData.getTime() - nyNow.getTime()) / 60000);
+                            }
+                        } else {
+                            arrivalTime = 'closed';
+                        }
+                    }
+                }
+
                 upcoming.push({
                     time: timeStr,
                     minutes: mins,
                     is_tomorrow: isTomorrow || dayOffset > 0,
                     is_carryover: !isTomorrow && dayOffset > 0,
                     schedule: scheduleName,
-                    schedule_url: scheduleUrl
+                    schedule_url: scheduleUrl,
+                    arrivalTime: arrivalTime,
+                    arrivalMinutes: arrivalMinutes
                 });
 
                 if (upcoming.length >= count) return;
@@ -364,8 +485,20 @@ function updateTrains(showLoading = false) {
         return getTimeColor(d.trains[0].minutes);
     }
 
-    const eastColor = getDirColor(eastbound);
-    const westColor = getDirColor(westbound);
+    let eastColor = getDirColor(eastbound);
+    let westColor = getDirColor(westbound);
+
+    // When a destination is selected, the opposite direction's hover color should
+    // preview the swapped state (destination becomes station)
+    if (currentDestination) {
+        const oppositeDir = currentDirection === 'eastbound' ? 'westbound' : 'eastbound';
+        const swappedData = getNextTrainsForDirection(currentDestination, oppositeDir);
+        if (oppositeDir === 'eastbound') {
+            eastColor = getDirColor(swappedData);
+        } else {
+            westColor = getDirColor(swappedData);
+        }
+    }
 
     document.documentElement.style.setProperty('--east-color', eastColor);
     document.documentElement.style.setProperty('--west-color', westColor);
@@ -436,6 +569,14 @@ function renderTrains(data) {
             <p class="countdown-label">Next train at</p>
             <div class="countdown" style="background: linear-gradient(135deg, ${countdownColor}, ${countdownColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${formatTime(next.time)}</div>
             <div class="countdown-unit">${next.is_tomorrow ? 'tomorrow' : ''}</div>
+            ${next.arrivalTime ? `
+            <div class="next-arrival">
+                ${next.arrivalTime === 'closed'
+                    ? `<span class="arrival-dest">${currentDestination}</span> <span style="color: var(--text-muted);">(closed)</span>`
+                    : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${currentDestination}</span>`
+                }
+            </div>
+            ` : ''}
         ` : `
             <p class="countdown-label">Next train in</p>
             <div class="countdown" style="background: linear-gradient(135deg, ${countdownColor}, ${countdownColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${next.minutes <= 1 ? '< 1' : next.minutes}</div>
@@ -443,6 +584,14 @@ function renderTrains(data) {
             <div class="next-time">
                 ${formatTime(next.time)}${next.is_tomorrow ? ' <span style="color: var(--text-muted); font-size: 0.9rem;">(tomorrow)</span>' : ''}
             </div>
+            ${next.arrivalTime ? `
+            <div class="next-arrival">
+                ${next.arrivalTime === 'closed'
+                ? `<span class="arrival-dest">${currentDestination}</span> <span style="color: var(--text-muted);">(closed)</span>`
+                : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${currentDestination}</span>`
+            }
+            </div>
+            ` : ''}
         `}
         <div class="refresh-note">
             <div class="refresh-ring">
@@ -501,7 +650,7 @@ function renderTrains(data) {
 
                 html += `
                     <li class="upcoming-item ${train.isLastToday ? 'thick-border' : ''}">
-                        <span class="upcoming-time">${formatTime(train.time)}</span>
+                        <span class="upcoming-time">${formatTime(train.time)}${train.arrivalTime ? ' <span class="arrival-time"><span class="arrival-arrow">→</span> ' + (train.arrivalTime === 'closed' ? '<span class="arrival-closed">Closed</span>' : '<span class="arrival-value">' + formatTime(train.arrivalTime) + '</span>') + '</span>' : ''}</span>
                         <span class="upcoming-tomorrow">${train.is_tomorrow ? '' : ''}</span>
                         <div class="upcoming-spacer"></div>
                         <span class="upcoming-minutes">${formatMinutes(train.minutes)}</span>
@@ -555,7 +704,36 @@ function renderTrains(data) {
 document.getElementById('stationSelect').addEventListener('change', (e) => {
     currentStation = e.target.value;
     localStorage.setItem('patco_station', currentStation);
+    updateDestinationDropdown();
     loadTrains();
+});
+
+document.getElementById('destinationSelect').addEventListener('change', (e) => {
+    currentDestination = e.target.value;
+    if (currentDestination) {
+        localStorage.setItem('patco_destination', currentDestination);
+    } else {
+        localStorage.removeItem('patco_destination');
+    }
+    const noDestOpt = e.target.querySelector('option[value=""]');
+    const clearBtn2 = document.getElementById('clearDestination');
+    clearBtn2.style.opacity = currentDestination ? '1' : '0';
+    clearBtn2.style.pointerEvents = currentDestination ? '' : 'none';
+    if (noDestOpt) noDestOpt.style.display = currentDestination ? 'none' : '';
+    loadTrains(false);
+});
+
+document.getElementById('clearDestination').addEventListener('click', () => {
+    currentDestination = '';
+    localStorage.removeItem('patco_destination');
+    const destSelect = document.getElementById('destinationSelect');
+    const noDestOpt = destSelect.querySelector('option[value=""]');
+    if (noDestOpt) noDestOpt.style.display = '';
+    destSelect.value = '';
+    const clearBtn3 = document.getElementById('clearDestination');
+    clearBtn3.style.opacity = '0';
+    clearBtn3.style.pointerEvents = 'none';
+    loadTrains(false);
 });
 
 document.querySelectorAll('.direction-btn').forEach(btn => {
@@ -569,7 +747,20 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
         currentDirection = btn.dataset.direction;
         localStorage.setItem('patco_direction', currentDirection);
 
+        // Swap station and destination when changing direction
+        if (currentDestination && currentStation) {
+            const oldStation = currentStation;
+            currentStation = currentDestination;
+            currentDestination = oldStation;
+
+            localStorage.setItem('patco_station', currentStation);
+            localStorage.setItem('patco_destination', currentDestination);
+
+            document.getElementById('stationSelect').value = currentStation;
+        }
+
         updateStationOrder();
+        updateDestinationDropdown();
         loadTrains(false);
     });
 });

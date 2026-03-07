@@ -149,6 +149,15 @@ select option {
     color: var(--text-primary);
 }
 
+select option:disabled {
+    color: var(--text-muted);
+}
+
+select option.origin-station {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .direction-toggle {
     display: flex;
     gap: 0.5rem;
@@ -278,13 +287,13 @@ select option {
     font-size: 1.25rem;
     font-weight: 500;
     color: var(--text-secondary);
-    margin-bottom: 1rem;
+    margin-bottom: 0.25rem;
 }
 
 .next-time {
     font-size: 1.5rem;
     font-weight: 600;
-    margin-top: 1rem;
+    margin-top: 0.5rem;
     -webkit-user-select: text;
     user-select: text;
 }
@@ -363,6 +372,83 @@ a.schedule-badge.sunday:hover {
 a.schedule-badge:hover {
     background: rgba(195, 0, 50, 0.2);
     border-color: var(--patco-red);
+}
+
+.optional-label {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.label-row label {
+    margin-bottom: 0;
+}
+
+.clear-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    cursor: pointer;
+    padding: 0.1rem 0.4rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    transition: color 0.2s, border-color 0.2s, opacity 0.1s;
+}
+
+.clear-btn:hover {
+    color: var(--patco-red);
+    border-color: var(--patco-red);
+}
+
+.arrival-time {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.arrival-time .arrival-arrow {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.arrival-time .arrival-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.arrival-time .arrival-closed {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.next-arrival {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin-top: 0.75rem;
+    font-weight: 500;
+}
+
+.next-arrival .arrival-dest {
+    color: var(--text-muted);
+    font-size: 0.85rem;
 }
 
 .upcoming-list {
@@ -562,8 +648,8 @@ a.upcoming-schedule.sunday:hover {
     gap: 0.5rem;
     color: var(--text-muted);
     font-size: 0.8rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.75rem;
+    margin-top: 1rem;
+    margin-bottom: 0.25rem;
 }
 
 .refresh-note #refreshCountdown {
@@ -613,7 +699,31 @@ footer {
 }
 
 @media (max-width: 480px) {
+    body {
+        padding: 1rem 0.75rem;
+    }
+
+    header {
+        margin-bottom: 1rem;
+    }
+
+    .card {
+        padding: 1.25rem;
+    }
+
+    .next-train-card {
+        padding: 1.5rem 1.25rem;
+    }
+
     .countdown {
         font-size: 3.5rem;
+    }
+
+    .selector-group {
+        margin-bottom: 0.75rem;
+    }
+
+    footer {
+        padding-top: 1rem;
     }
 }
