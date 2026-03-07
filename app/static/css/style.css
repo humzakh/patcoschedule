@@ -37,6 +37,7 @@
     --text-secondary: rgba(255, 255, 255, 0.6);
     --text-muted: rgba(255, 255, 255, 0.4);
     --glow: rgba(195, 0, 50, 0.3);
+    --blue-accent: #3b82f6;
 }
 
 * {
@@ -134,10 +135,29 @@ select {
     border-radius: 10px;
     cursor: pointer;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
     transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.select-arrow {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    pointer-events: none;
+    font-size: 1.4rem;
+    font-variation-settings: 'wght' 500;
+    transition: color 0.2s;
+}
+
+.select-wrapper:hover .select-arrow,
+select:focus+.select-arrow {
+    color: #fff;
 }
 
 select:focus {
@@ -393,18 +413,99 @@ a.schedule-badge:hover {
     margin-bottom: 0;
 }
 
-.clear-btn {
+.clear-btn,
+.geo-btn {
     background: none;
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 9999px;
     color: var(--text-muted);
     font-size: 0.65rem;
     cursor: pointer;
     padding: 0.1rem 0.4rem;
     font-weight: 700;
-    text-transform: none;
-    letter-spacing: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     transition: color 0.2s, border-color 0.2s, opacity 0.1s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.clear-btn:hover {
+    color: var(--patco-red);
+    border-color: var(--patco-red);
+}
+
+.geo-btn:hover {
+    color: var(--blue-accent);
+    border-color: var(--blue-accent);
+}
+
+.show-more-btn:hover {
+    color: var(--blue-accent);
+    border-color: var(--blue-accent);
+}
+
+.geo-icon {
+    font-size: 0.9rem !important;
+    width: 0.9rem;
+    height: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+.geo-btn.geo-loading .geo-icon {
+    display: none;
+}
+
+.geo-btn.geo-loading .spinner-small {
+    display: inline-block !important;
+}
+
+.spinner-small {
+    width: 0.9rem;
+    height: 0.9rem;
+    vertical-align: middle;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top: 2px solid var(--blue-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    box-sizing: border-box;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.geo-control {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.geo-toast {
+    position: absolute;
+    top: 100%;
+    right: -8px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.2rem;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: #1c1c26;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
 }
 
 .clear-btn:hover {
@@ -422,12 +523,10 @@ a.schedule-badge:hover {
 }
 
 .arrival-time .arrival-arrow {
-    color: var(--text-muted);
     font-size: 0.75rem;
 }
 
 .arrival-time .arrival-value {
-    color: var(--text-primary);
     font-weight: 600;
     font-size: 0.95rem;
 }
@@ -596,7 +695,7 @@ a.upcoming-schedule.sunday:hover {
 
 .show-more-btn {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.5rem;
     margin-top: 1.25rem;
     background: transparent;
     border: 1px solid var(--border-color);
@@ -605,6 +704,26 @@ a.upcoming-schedule.sunday:hover {
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+}
+
+.show-more-btn .material-symbols-outlined {
+    font-size: 1.8rem;
+    font-variation-settings: 'wght' 500;
+    transition: transform 0.2s ease;
+}
+
+.show-more-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.geo-icon {
+    font-size: 0.9rem !important;
+    vertical-align: middle;
 }
 
 .show-more-btn:hover {
