@@ -5,6 +5,23 @@ let currentDestination = localStorage.getItem('patco_destination') || '';
 // The loaded JSON data
 let patcoData = null;
 
+const STATION_LOCATIONS = {
+    "15/16th & Locust": { lat: 39.948332, lon: -75.166838 },
+    "12/13th & Locust": { lat: 39.948332, lon: -75.162000 },
+    "9/10th & Locust": { lat: 39.948332, lon: -75.156828 },
+    "8th & Market": { lat: 39.950794, lon: -75.153920 },
+    "Franklin Square": { lat: 39.954707, lon: -75.151865 },
+    "City Hall": { lat: 39.942360, lon: -75.122851 },
+    "Broadway": { lat: 39.940801, lon: -75.120224 },
+    "Ferry Avenue": { lat: 39.920038, lon: -75.101890 },
+    "Collingswood": { lat: 39.914164, lon: -75.076899 },
+    "Westmont": { lat: 39.907923, lon: -75.056910 },
+    "Haddonfield": { lat: 39.898822, lon: -75.034220 },
+    "Woodcrest": { lat: 39.882415, lon: -75.013444 },
+    "Ashland": { lat: 39.866127, lon: -74.996116 },
+    "Lindenwold": { lat: 39.821915, lon: -74.985611 }
+};
+
 // Initialize UI immediate state to prevent flash
 const activeBtn = document.querySelector(`.direction-btn[data-direction="${currentDirection}"]`);
 if (activeBtn) activeBtn.classList.add('active');
@@ -14,9 +31,125 @@ if (currentStation) {
     if (select) select.value = currentStation;
 }
 
+// Calculate distance between two points in km
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth radius
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function getNearestStation(lat, lon) {
+    let nearest = null;
+    let minDistance = Infinity;
+
+    for (const [name, coords] of Object.entries(STATION_LOCATIONS)) {
+        const dist = getDistance(lat, lon, coords.lat, coords.lon);
+        if (dist < minDistance) {
+            minDistance = dist;
+            nearest = name;
+        }
+    }
+    return nearest;
+}
+
+function handleGeolocation() {
+    const btn = document.getElementById('findMe');
+    if (!navigator.geolocation) {
+        // Fallback visual feedback if not supported
+        const icon = btn.querySelector('.geo-icon');
+        if (icon) icon.textContent = 'location_disabled';
+        return;
+    }
+
+    let loadingTimeout = setTimeout(() => {
+        btn.classList.add('geo-loading');
+    }, 300);
+
+    const icon = btn.querySelector('.geo-icon');
+    if (icon) icon.textContent = 'location_searching';
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+    };
+
+    const onSuccess = (position) => {
+        clearTimeout(loadingTimeout);
+        const { latitude, longitude } = position.coords;
+        const nearest = getNearestStation(latitude, longitude);
+
+        if (nearest) {
+            currentStation = nearest;
+            localStorage.setItem('patco_station', currentStation);
+            const select = document.getElementById('stationSelect');
+            if (select) select.value = currentStation;
+
+            updateDestinationDropdown();
+            updateTrains(true);
+
+            const icon = btn.querySelector('.geo-icon');
+            if (icon) icon.textContent = 'my_location';
+        }
+
+        btn.classList.remove('geo-loading');
+    };
+
+    function showGeoToast() {
+        const toast = document.getElementById('geoToast');
+        if (!toast) return;
+
+        toast.style.display = 'block';
+        // Small delay to allow display:block to hit before opacity transition
+        setTimeout(() => {
+            toast.style.opacity = '1';
+        }, 10);
+
+        // Hide after 3 seconds
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 300);
+        }, 3000);
+    }
+
+    const onError = (error) => {
+        clearTimeout(loadingTimeout);
+        console.warn("Geolocation error (trying fallback):", error);
+
+        // If high accuracy failed/timed out, try one more time with low accuracy
+        if (options.enableHighAccuracy) {
+            options.enableHighAccuracy = false;
+            options.timeout = 10000; // 10s for the fallback
+            navigator.geolocation.getCurrentPosition(onSuccess, (finalError) => {
+                console.error("Geolocation final error:", finalError);
+                btn.classList.remove('geo-loading');
+                const icon = btn.querySelector('.geo-icon');
+                if (icon) icon.textContent = 'location_disabled';
+                showGeoToast();
+            }, options);
+        } else {
+            btn.classList.remove('geo-loading');
+            const icon = btn.querySelector('.geo-icon');
+            if (icon) icon.textContent = 'location_disabled';
+            showGeoToast();
+        }
+    };
+
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+}
+
 // Ensure the station dropdown loads in the correct order for the cached direction before the data fetch finishes
 updateStationOrder();
 updateDestinationDropdown();
+
+document.getElementById('findMe').addEventListener('click', handleGeolocation);
 
 let refreshInterval;
 let currentTrainColor = '#22c55e'; // Default to green
@@ -85,11 +218,11 @@ function toggleMoreTrains(btn) {
     const hiddenList = document.getElementById('hiddenTrains');
     if (hiddenList.style.display === 'none') {
         hiddenList.style.display = 'block';
-        btn.innerHTML = '▲';
+        btn.innerHTML = '<span class="material-symbols-outlined">expand_less</span>';
         isListExpanded = true;
     } else {
         hiddenList.style.display = 'none';
-        btn.innerHTML = '▼';
+        btn.innerHTML = '<span class="material-symbols-outlined">expand_more</span>';
         isListExpanded = false;
     }
 }
@@ -557,8 +690,8 @@ function renderTrains(data) {
     // Format the top-level today schedule badge
     let displayNextSchedule = next.schedule;
     if (displayNextSchedule.startsWith('Special (')) {
-        // Convert "Special (02-23)" to "Special Schedule (02/23)"
-        displayNextSchedule = displayNextSchedule.replace('Special (', 'Special Schedule (').replace('-', '/');
+        // Convert "Special (02-23)" to "Special Schedule (2/23)"
+        displayNextSchedule = displayNextSchedule.replace('Special (', 'Special Schedule (').replace('-', '/').replace(/([(/])0/g, '$1');
     } else {
         displayNextSchedule = displayNextSchedule + (displayNextSchedule.toLowerCase().includes('schedule') ? '' : ' schedule');
     }
@@ -572,7 +705,7 @@ function renderTrains(data) {
             ${next.arrivalTime ? `
             <div class="next-arrival">
                 ${next.arrivalTime === 'closed'
-                    ? `<span class="arrival-dest">${currentDestination}</span> <span style="color: var(--text-muted);">(closed)</span>`
+                    ? `<span class="arrival-dest">Destination: ${currentDestination} (closed)</span>`
                     : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${currentDestination}</span>`
                 }
             </div>
@@ -587,7 +720,7 @@ function renderTrains(data) {
             ${next.arrivalTime ? `
             <div class="next-arrival">
                 ${next.arrivalTime === 'closed'
-                ? `<span class="arrival-dest">${currentDestination}</span> <span style="color: var(--text-muted);">(closed)</span>`
+                ? `<span class="arrival-dest">Destination: ${currentDestination} (closed)</span>`
                 : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${currentDestination}</span>`
             }
             </div>
@@ -669,7 +802,7 @@ function renderTrains(data) {
                 <ul class="upcoming-list" id="hiddenTrains" style="display: none;">
                     ${renderInfos(hiddenTrains)}
                 </ul>
-                <button class="show-more-btn" onclick="toggleMoreTrains(this)">▼</button>
+                <button class="show-more-btn" onclick="toggleMoreTrains(this)"><span class="material-symbols-outlined">expand_more</span></button>
             ` : ''}
         </div>
     `;
@@ -677,16 +810,16 @@ function renderTrains(data) {
 
     document.getElementById('trainInfo').innerHTML = html;
 
-    const activeBtn = document.querySelector('.direction-btn.active');
-    if (activeBtn) {
-        activeBtn.style.background = countdownColor;
+    const currentActiveBtn = document.querySelector('.direction-btn.active');
+    if (currentActiveBtn) {
+        currentActiveBtn.style.background = countdownColor;
         let shadowColor = countdownColor;
         if (countdownColor.startsWith('#')) {
             shadowColor = countdownColor + '66';
         } else {
             shadowColor = countdownColor.replace('rgb(', 'rgba(').replace(')', ', 0.4)');
         }
-        activeBtn.style.boxShadow = `0 4px 15px ${shadowColor}`;
+        currentActiveBtn.style.boxShadow = `0 4px 15px ${shadowColor}`;
     }
 
     document.documentElement.style.setProperty('--severity-color', countdownColor);
@@ -696,7 +829,7 @@ function renderTrains(data) {
         const btn = document.querySelector('.show-more-btn');
         if (hiddenList && btn) {
             hiddenList.style.display = 'block';
-            btn.innerHTML = '▲';
+            btn.innerHTML = '<span class="material-symbols-outlined">expand_less</span>';
         }
     }
 }
@@ -706,6 +839,10 @@ document.getElementById('stationSelect').addEventListener('change', (e) => {
     localStorage.setItem('patco_station', currentStation);
     updateDestinationDropdown();
     loadTrains();
+
+    // Reset geolocation icon to default if user manually changes station
+    const geoIcon = document.querySelector('#findMe .geo-icon');
+    if (geoIcon) geoIcon.textContent = 'location_searching';
 });
 
 document.getElementById('destinationSelect').addEventListener('change', (e) => {
@@ -757,6 +894,10 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
             localStorage.setItem('patco_destination', currentDestination);
 
             document.getElementById('stationSelect').value = currentStation;
+
+            // Reset geolocation icon to default if stations are swapped
+            const geoIcon = document.querySelector('#findMe .geo-icon');
+            if (geoIcon) geoIcon.textContent = 'location_searching';
         }
 
         updateStationOrder();
