@@ -26,9 +26,112 @@ const STATION_LOCATIONS = {
 const activeBtn = document.querySelector(`.direction-btn[data-direction="${currentDirection}"]`);
 if (activeBtn) activeBtn.classList.add('active');
 
+// Custom select helpers
+function setCustomSelectValue(selectEl, value) {
+    selectEl.dataset.value = value;
+    const trigger = selectEl.querySelector('.custom-select-trigger');
+    const valueSpan = trigger.querySelector('.custom-select-value');
+    if (value) {
+        const opt = selectEl.querySelector(`.custom-select-option[data-value="${CSS.escape(value)}"]`);
+        let text = opt ? opt.textContent : value;
+        // Ensure destination label doesn't show the "Origin" marker
+        if (selectEl.id === 'destinationSelect' && text) {
+            text = text.split(' \u2022')[0];
+        }
+        valueSpan.textContent = text;
+        trigger.classList.remove('placeholder');
+    } else {
+        // For stationSelect show placeholder, for destination show "No destination"
+        if (selectEl.id === 'stationSelect') {
+            valueSpan.textContent = 'Select a station...';
+            trigger.classList.add('placeholder');
+        } else {
+            valueSpan.textContent = 'No destination';
+            trigger.classList.remove('placeholder');
+        }
+    }
+    // Update selected class on options
+    selectEl.querySelectorAll('.custom-select-option').forEach(o => {
+        o.classList.toggle('selected', o.dataset.value === value);
+    });
+}
+
+function closeAllCustomSelects(except) {
+    document.querySelectorAll('.custom-select.open').forEach(s => {
+        if (s !== except) s.classList.remove('open');
+    });
+}
+
+function setupCustomSelect(selectEl, onChange, opts = {}) {
+    const trigger = selectEl.querySelector('.custom-select-trigger');
+    const scrollTarget = opts.scrollTarget || '.custom-select-option.selected';
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wasOpen = selectEl.classList.contains('open');
+        closeAllCustomSelects();
+        if (!wasOpen) {
+            // Pre-scroll before opening so the dropdown reveals at the right position
+            const selector = typeof scrollTarget === 'function' ? scrollTarget() : scrollTarget;
+            const target = selectEl.querySelector(selector);
+            if (target) {
+                const optionsList = selectEl.querySelector('.custom-select-list');
+                
+                // Helper to find the visual element immediately above another element, 
+                // even across group boundaries.
+                const getPrevVisual = (el) => {
+                    if (el.previousElementSibling) return el.previousElementSibling;
+                    const parent = el.parentElement;
+                    if (parent && parent.classList.contains('custom-select-group')) {
+                        const prevGroup = parent.previousElementSibling;
+                        if (prevGroup) return prevGroup.lastElementChild;
+                    }
+                    return null;
+                };
+
+                let peekTarget = getPrevVisual(target);
+                // If the item above is a group header, peek one more to show a station above it
+                if (peekTarget && peekTarget.classList.contains('custom-select-group-label')) {
+                    const aboveHeader = getPrevVisual(peekTarget);
+                    if (aboveHeader) peekTarget = aboveHeader;
+                }
+                
+                const scrollPos = peekTarget ? peekTarget.offsetTop : target.offsetTop;
+                optionsList.scrollTop = scrollPos - 8;
+            }
+            selectEl.classList.add('open');
+        }
+    });
+
+    // Prevent clicks inside the options panel (on headers, disabled items, etc.) from closing the dropdown
+    const optionsPanel = selectEl.querySelector('.custom-select-options');
+    optionsPanel.addEventListener('click', (e) => e.stopPropagation());
+
+    selectEl.querySelectorAll('.custom-select-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            // Close dropdown if clicking an unselectable item (marked as disabled)
+            if (opt.classList.contains('disabled')) {
+                selectEl.classList.remove('open');
+                return;
+            }
+
+            const val = opt.dataset.value;
+            setCustomSelectValue(selectEl, val);
+            selectEl.classList.remove('open');
+            if (onChange) onChange(val);
+        });
+    });
+}
+
+// Close on outside click
+document.addEventListener('click', () => closeAllCustomSelects());
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAllCustomSelects();
+});
+
 if (currentStation) {
-    const select = document.getElementById('stationSelect');
-    if (select) select.value = currentStation;
+    setCustomSelectValue(document.getElementById('stationSelect'), currentStation);
 }
 
 // Calculate distance between two points in km
@@ -87,8 +190,7 @@ function handleGeolocation() {
         if (nearest) {
             currentStation = nearest;
             localStorage.setItem('patco_station', currentStation);
-            const select = document.getElementById('stationSelect');
-            if (select) select.value = currentStation;
+            setCustomSelectValue(document.getElementById('stationSelect'), currentStation);
 
             updateDestinationDropdown();
             updateTrains(true);
@@ -145,7 +247,34 @@ function handleGeolocation() {
     navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
 }
 
-// Ensure the station dropdown loads in the correct order for the cached direction before the data fetch finishes
+// Set up station select with change handler
+setupCustomSelect(document.getElementById('stationSelect'), (val) => {
+    currentStation = val;
+    localStorage.setItem('patco_station', currentStation);
+    updateDestinationDropdown();
+    loadTrains();
+    const geoIcon = document.querySelector('#findMe .geo-icon');
+    if (geoIcon) geoIcon.textContent = 'location_searching';
+});
+
+// Set up destination select with change handler
+setupCustomSelect(document.getElementById('destinationSelect'), (val) => {
+    currentDestination = val;
+    if (currentDestination) {
+        localStorage.setItem('patco_destination', currentDestination);
+    } else {
+        localStorage.removeItem('patco_destination');
+    }
+    const clearBtn = document.getElementById('clearDestination');
+    clearBtn.style.opacity = currentDestination ? '1' : '0';
+    clearBtn.style.pointerEvents = currentDestination ? '' : 'none';
+    // Hide "No destination" option when a destination is selected
+    const noDestOpt = document.querySelector('#destinationSelect .custom-select-option[data-value=""]');
+    if (noDestOpt) noDestOpt.style.display = currentDestination ? 'none' : '';
+    loadTrains(false);
+}, { scrollTarget: () => currentDestination ? '.custom-select-option.selected' : '.custom-select-option.origin-station' });
+
+// Ensure the station dropdown loads in the correct order for the cached direction
 updateStationOrder();
 updateDestinationDropdown();
 
@@ -276,28 +405,28 @@ async function loadData() {
 
 function updateStationOrder() {
     const select = document.getElementById('stationSelect');
+    const optionsContainer = select.querySelector('.custom-select-list');
     const paGrp = document.getElementById('pa-stations');
     const njGrp = document.getElementById('nj-stations');
 
-    // Make sure we select the cached station immediately if one exists
+    // Make sure we set the cached station immediately if one exists
     if (currentStation) {
-        select.value = currentStation;
-    } else {
-        select.value = "";
+        setCustomSelectValue(select, currentStation);
     }
 
     // The HTML is hardcoded in the Eastbound sequence.
     // We visually reverse the station list so it flows logically with the user's travel direction.
     const reverseOptions = (grp) => {
-        const options = Array.from(grp.children);
+        const label = grp.querySelector('.custom-select-group-label');
+        const options = Array.from(grp.querySelectorAll('.custom-select-option'));
         options.reverse().forEach(opt => grp.appendChild(opt));
     };
 
     // Sort container order and internal option order
     if (currentDirection === 'eastbound') {
         // PA comes first when headed east
-        select.appendChild(paGrp);
-        select.appendChild(njGrp);
+        optionsContainer.appendChild(paGrp);
+        optionsContainer.appendChild(njGrp);
 
         // If they are currently in westbound "reversed" state, flip them back
         if (paGrp.dataset.reversed === "true") {
@@ -307,8 +436,8 @@ function updateStationOrder() {
         }
     } else {
         // NJ comes first when headed west
-        select.appendChild(njGrp);
-        select.appendChild(paGrp);
+        optionsContainer.appendChild(njGrp);
+        optionsContainer.appendChild(paGrp);
 
         // If they are currently in eastbound "normal" state, flip them to reversed
         if (paGrp.dataset.reversed !== "true") {
@@ -323,6 +452,7 @@ function updateStationOrder() {
 function updateDestinationDropdown() {
     const destGroup = document.getElementById('destinationGroup');
     const destSelect = document.getElementById('destinationSelect');
+    const optionsContainer = destSelect.querySelector('.custom-select-list');
     const destPaGrp = document.getElementById('dest-pa-stations');
     const destNjGrp = document.getElementById('dest-nj-stations');
 
@@ -349,13 +479,13 @@ function updateDestinationDropdown() {
 
     // Mirror the station dropdown ordering logic for optgroups
     const reverseOptions = (grp) => {
-        const options = Array.from(grp.children);
+        const options = Array.from(grp.querySelectorAll('.custom-select-option'));
         options.reverse().forEach(opt => grp.appendChild(opt));
     };
 
     if (currentDirection === 'eastbound') {
-        destSelect.appendChild(destPaGrp);
-        destSelect.appendChild(destNjGrp);
+        optionsContainer.appendChild(destPaGrp);
+        optionsContainer.appendChild(destNjGrp);
 
         if (destPaGrp.dataset.reversed === "true") {
             reverseOptions(destPaGrp);
@@ -363,8 +493,8 @@ function updateDestinationDropdown() {
             destPaGrp.dataset.reversed = "false";
         }
     } else {
-        destSelect.appendChild(destNjGrp);
-        destSelect.appendChild(destPaGrp);
+        optionsContainer.appendChild(destNjGrp);
+        optionsContainer.appendChild(destPaGrp);
 
         if (destPaGrp.dataset.reversed !== "true") {
             reverseOptions(destPaGrp);
@@ -374,23 +504,21 @@ function updateDestinationDropdown() {
     }
 
     // Disable origin station and upstream stations; enable downstream stations
-    const allOptions = destSelect.querySelectorAll('option[value]:not([value=""])');
+    const allOptions = destSelect.querySelectorAll('.custom-select-option[data-value]:not([data-value=""])');
     allOptions.forEach(opt => {
-        const stIdx = stationOrder.indexOf(opt.value);
-        if (opt.value === currentStation) {
-            opt.disabled = true;
-            opt.classList.add('origin-station');
-            opt.textContent = opt.value + ' \u2022 Origin';
+        const stIdx = stationOrder.indexOf(opt.dataset.value);
+        if (opt.dataset.value === currentStation) {
+            opt.classList.add('disabled', 'origin-station');
+            opt.textContent = opt.dataset.value + ' \u2022 Origin';
         } else if (stIdx >= 0 && stIdx <= originIdx) {
             // Upstream station
-            opt.disabled = true;
+            opt.classList.add('disabled');
             opt.classList.remove('origin-station');
-            opt.textContent = opt.value;
+            opt.textContent = opt.dataset.value;
         } else {
             // Downstream station
-            opt.disabled = false;
-            opt.classList.remove('origin-station');
-            opt.textContent = opt.value;
+            opt.classList.remove('disabled', 'origin-station');
+            opt.textContent = opt.dataset.value;
         }
     });
 
@@ -398,18 +526,18 @@ function updateDestinationDropdown() {
     if (currentDestination) {
         const destIdx = stationOrder.indexOf(currentDestination);
         if (destIdx > originIdx) {
-            destSelect.value = currentDestination;
+            setCustomSelectValue(destSelect, currentDestination);
         } else {
             currentDestination = '';
             localStorage.removeItem('patco_destination');
-            destSelect.value = '';
+            setCustomSelectValue(destSelect, '');
         }
     } else {
-        destSelect.value = '';
+        setCustomSelectValue(destSelect, '');
     }
 
     // Toggle clear button and "No destination" option
-    const noDestOption = destSelect.querySelector('option[value=""]');
+    const noDestOption = destSelect.querySelector('.custom-select-option[data-value=""]');
     const clearBtn = document.getElementById('clearDestination');
     clearBtn.style.opacity = currentDestination ? '1' : '0';
     clearBtn.style.pointerEvents = currentDestination ? '' : 'none';
@@ -834,39 +962,13 @@ function renderTrains(data) {
     }
 }
 
-document.getElementById('stationSelect').addEventListener('change', (e) => {
-    currentStation = e.target.value;
-    localStorage.setItem('patco_station', currentStation);
-    updateDestinationDropdown();
-    loadTrains();
-
-    // Reset geolocation icon to default if user manually changes station
-    const geoIcon = document.querySelector('#findMe .geo-icon');
-    if (geoIcon) geoIcon.textContent = 'location_searching';
-});
-
-document.getElementById('destinationSelect').addEventListener('change', (e) => {
-    currentDestination = e.target.value;
-    if (currentDestination) {
-        localStorage.setItem('patco_destination', currentDestination);
-    } else {
-        localStorage.removeItem('patco_destination');
-    }
-    const noDestOpt = e.target.querySelector('option[value=""]');
-    const clearBtn2 = document.getElementById('clearDestination');
-    clearBtn2.style.opacity = currentDestination ? '1' : '0';
-    clearBtn2.style.pointerEvents = currentDestination ? '' : 'none';
-    if (noDestOpt) noDestOpt.style.display = currentDestination ? 'none' : '';
-    loadTrains(false);
-});
-
 document.getElementById('clearDestination').addEventListener('click', () => {
     currentDestination = '';
     localStorage.removeItem('patco_destination');
     const destSelect = document.getElementById('destinationSelect');
-    const noDestOpt = destSelect.querySelector('option[value=""]');
+    const noDestOpt = destSelect.querySelector('.custom-select-option[data-value=""]');
     if (noDestOpt) noDestOpt.style.display = '';
-    destSelect.value = '';
+    setCustomSelectValue(destSelect, '');
     const clearBtn3 = document.getElementById('clearDestination');
     clearBtn3.style.opacity = '0';
     clearBtn3.style.pointerEvents = 'none';
@@ -875,12 +977,19 @@ document.getElementById('clearDestination').addEventListener('click', () => {
 
 document.querySelectorAll('.direction-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        const isOpen = !!document.querySelector('.custom-select.open');
+        
+        // Close dropdowns immediately so the closing animation starts
+        closeAllCustomSelects();
+
+        // 1. Instant UI Updates (Buttons, Train Data, Trigger Text)
         document.querySelectorAll('.direction-btn').forEach(b => {
             b.classList.remove('active');
             b.style.background = '';
             b.style.boxShadow = '';
         });
         btn.classList.add('active');
+
         currentDirection = btn.dataset.direction;
         localStorage.setItem('patco_direction', currentDirection);
 
@@ -893,16 +1002,27 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
             localStorage.setItem('patco_station', currentStation);
             localStorage.setItem('patco_destination', currentDestination);
 
-            document.getElementById('stationSelect').value = currentStation;
+            setCustomSelectValue(document.getElementById('stationSelect'), currentStation);
+            setCustomSelectValue(document.getElementById('destinationSelect'), currentDestination);
 
-            // Reset geolocation icon to default if stations are swapped
             const geoIcon = document.querySelector('#findMe .geo-icon');
             if (geoIcon) geoIcon.textContent = 'location_searching';
         }
 
-        updateStationOrder();
-        updateDestinationDropdown();
+        // Reload data instantly
         loadTrains(false);
+
+        // 2. Delayed List Reordering (Only if open to avoid jank)
+        const reorderLists = () => {
+            updateStationOrder();
+            updateDestinationDropdown();
+        };
+
+        if (isOpen) {
+            setTimeout(reorderLists, 200);
+        } else {
+            reorderLists();
+        }
     });
 });
 
