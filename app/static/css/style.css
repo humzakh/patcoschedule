@@ -106,6 +106,12 @@ header {
     backdrop-filter: blur(20px);
 }
 
+.selector-card {
+    position: relative;
+    z-index: 10;
+    overflow: visible;
+}
+
 .selector-group {
     margin-bottom: 1rem;
 }
@@ -124,9 +130,20 @@ label {
     font-weight: 700;
 }
 
-select {
+/* Custom Select Dropdown */
+.custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select.open {
+    z-index: 1000;
+}
+
+.custom-select-trigger {
     width: 100%;
     padding: 0.875rem 1rem;
+    padding-right: 2.5rem;
     font-size: 1rem;
     font-family: inherit;
     color: var(--text-primary);
@@ -134,16 +151,29 @@ select {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     cursor: pointer;
-    appearance: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    text-align: left;
+    transition: border-color 0.2s, box-shadow 0.2s, border-radius 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+    display: flex;
+    align-items: center;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.select-wrapper {
-    position: relative;
-    width: 100%;
+.custom-select-trigger.placeholder {
+    color: var(--text-muted);
 }
 
-.select-arrow {
+.custom-select-trigger:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.custom-select.open .custom-select-trigger {
+    border-color: rgba(255, 255, 255, 0.15);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.custom-select-trigger .select-arrow {
     position: absolute;
     right: 0.75rem;
     top: 50%;
@@ -152,31 +182,132 @@ select {
     pointer-events: none;
     font-size: 1.4rem;
     font-variation-settings: 'wght' 500;
-    transition: color 0.2s;
+    transition: color 0.2s, transform 0.2s;
 }
 
-.select-wrapper:hover .select-arrow,
-select:focus+.select-arrow {
+.custom-select-trigger:hover .select-arrow {
     color: #fff;
 }
 
-select:focus {
-    outline: none;
+.custom-select.open .select-arrow {
+    transform: translateY(-50%) rotate(180deg);
+    color: #fff;
 }
 
-select option {
-    background: var(--bg-secondary);
+.custom-select-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    /* Expand inset to allow shadow to bleed out on sides and bottom */
+    clip-path: inset(0 -100px 100% -100px);
+    opacity: 0;
+    /* Use a premium Quintic ease-out for a more natural feel */
+    transition: clip-path 0.18s cubic-bezier(0.23, 1, 0.32, 1), 
+                opacity 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+    pointer-events: none;
+    background: transparent;
+    border: none;
+}
+
+.custom-select-panel {
+    background: #181822;
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    overflow: hidden;
+    /* Key to clipping the scrollbar radius in Firefox */
+    /* Starting position for the slide down effect */
+    transform: translateY(-10px);
+    transition: transform 0.18s cubic-bezier(0.23, 1, 0.32, 1),
+                border-color 0.15s ease;
+}
+
+.custom-select-list {
+    position: relative;
+    max-height: 300px;
+    overflow-y: auto;
+    /* Firefox scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.custom-select.open .custom-select-options {
+    clip-path: inset(0 -100px -100px -100px);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.custom-select.open .custom-select-panel {
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(0);
+}
+
+
+.custom-select-group-label {
+    padding: 0.6rem 1rem 0.3rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.custom-select-option {
+    padding: 0.65rem 1rem;
+    font-size: 0.95rem;
+    cursor: pointer;
     color: var(--text-primary);
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
 }
 
-select option:disabled {
-    color: var(--text-muted);
+.custom-select-option:not(.disabled):hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 
-select option.origin-station {
-    color: var(--text-muted);
-    font-style: italic;
+
+.custom-select-option.selected {
+    color: var(--blue-accent);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
+
+.custom-select-option.selected::after {
+    content: '✓';
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.custom-select-option.disabled {
+    color: rgba(255, 255, 255, 0.2);
+    cursor: default;
+}
+
+.custom-select-option.origin-station {
+    font-weight: 600;
+}
+
+/* Scrollbar styling for dropdown */
+.custom-select-options::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-select-options::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-select-options::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
+
 
 .direction-toggle {
     display: flex;

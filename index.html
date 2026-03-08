@@ -39,7 +39,7 @@
             </div>
         </header>
 
-        <div class="card">
+        <div class="card selector-card">
             <div class="selector-group">
                 <div class="label-row">
                     <label>Origin</label>
@@ -52,29 +52,37 @@
                         <div id="geoToast" class="geo-toast" style="display: none;">Unable to access location</div>
                     </div>
                 </div>
-                <div class="select-wrapper">
-                    <select id="stationSelect">
-                        <option value="" disabled selected hidden>Select a station...</option>
-                        <optgroup id="pa-stations" label="Philadelphia">
-                            <option value="15/16th & Locust">15/16th & Locust</option>
-                            <option value="12/13th & Locust">12/13th & Locust</option>
-                            <option value="9/10th & Locust">9/10th & Locust</option>
-                            <option value="8th & Market">8th & Market</option>
-                            <option value="Franklin Square">Franklin Square</option>
-                        </optgroup>
-                        <optgroup id="nj-stations" label="New Jersey">
-                            <option value="City Hall">City Hall</option>
-                            <option value="Broadway">Broadway</option>
-                            <option value="Ferry Avenue">Ferry Avenue</option>
-                            <option value="Collingswood">Collingswood</option>
-                            <option value="Westmont">Westmont</option>
-                            <option value="Haddonfield">Haddonfield</option>
-                            <option value="Woodcrest">Woodcrest</option>
-                            <option value="Ashland">Ashland</option>
-                            <option value="Lindenwold">Lindenwold</option>
-                        </optgroup>
-                    </select>
-                    <span class="material-symbols-outlined select-arrow">expand_more</span>
+                <div class="custom-select" id="stationSelect" data-value="">
+                    <div class="custom-select-trigger placeholder">
+                        <span class="custom-select-value">Select a station...</span>
+                        <span class="material-symbols-outlined select-arrow">expand_more</span>
+                    </div>
+                    <div class="custom-select-options">
+                        <div class="custom-select-panel">
+                            <div class="custom-select-list">
+                                <div class="custom-select-group" id="pa-stations" data-label="Philadelphia">
+                                    <div class="custom-select-group-label">Philadelphia</div>
+                                    <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market</div>
+                                    <div class="custom-select-option" data-value="Franklin Square">Franklin Square</div>
+                                </div>
+                                <div class="custom-select-group" id="nj-stations" data-label="New Jersey">
+                                    <div class="custom-select-group-label">New Jersey</div>
+                                    <div class="custom-select-option" data-value="City Hall">City Hall</div>
+                                    <div class="custom-select-option" data-value="Broadway">Broadway</div>
+                                    <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
+                                    <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
+                                    <div class="custom-select-option" data-value="Westmont">Westmont</div>
+                                    <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
+                                    <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
+                                    <div class="custom-select-option" data-value="Ashland">Ashland</div>
+                                    <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="selector-group">
@@ -101,29 +109,38 @@
                     <label>Destination <span class="optional-label">(optional)</span></label>
                     <button id="clearDestination" class="clear-btn" title="Clear destination" style="opacity: 0; pointer-events: none;"> CLEAR &nbsp;✕ </button>
                 </div>
-                <div class="select-wrapper">
-                    <select id="destinationSelect">
-                        <option value="">No destination</option>
-                        <optgroup id="dest-pa-stations" label="Philadelphia">
-                            <option value="15/16th &amp; Locust">15/16th &amp; Locust</option>
-                            <option value="12/13th &amp; Locust">12/13th &amp; Locust</option>
-                            <option value="9/10th &amp; Locust">9/10th &amp; Locust</option>
-                            <option value="8th &amp; Market">8th &amp; Market</option>
-                            <option value="Franklin Square">Franklin Square</option>
-                        </optgroup>
-                        <optgroup id="dest-nj-stations" label="New Jersey">
-                            <option value="City Hall">City Hall</option>
-                            <option value="Broadway">Broadway</option>
-                            <option value="Ferry Avenue">Ferry Avenue</option>
-                            <option value="Collingswood">Collingswood</option>
-                            <option value="Westmont">Westmont</option>
-                            <option value="Haddonfield">Haddonfield</option>
-                            <option value="Woodcrest">Woodcrest</option>
-                            <option value="Ashland">Ashland</option>
-                            <option value="Lindenwold">Lindenwold</option>
-                        </optgroup>
-                    </select>
-                    <span class="material-symbols-outlined select-arrow">expand_more</span>
+                <div class="custom-select" id="destinationSelect" data-value="">
+                    <div class="custom-select-trigger">
+                        <span class="custom-select-value">No destination</span>
+                        <span class="material-symbols-outlined select-arrow">expand_more</span>
+                    </div>
+                    <div class="custom-select-options">
+                        <div class="custom-select-panel">
+                            <div class="custom-select-list">
+                                <div class="custom-select-option" data-value="">No destination</div>
+                                <div class="custom-select-group" id="dest-pa-stations" data-label="Philadelphia">
+                                    <div class="custom-select-group-label">Philadelphia</div>
+                                    <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp; Locust</div>
+                                    <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market</div>
+                                    <div class="custom-select-option" data-value="Franklin Square">Franklin Square</div>
+                                </div>
+                                <div class="custom-select-group" id="dest-nj-stations" data-label="New Jersey">
+                                    <div class="custom-select-group-label">New Jersey</div>
+                                    <div class="custom-select-option" data-value="City Hall">City Hall</div>
+                                    <div class="custom-select-option" data-value="Broadway">Broadway</div>
+                                    <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
+                                    <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
+                                    <div class="custom-select-option" data-value="Westmont">Westmont</div>
+                                    <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
+                                    <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
+                                    <div class="custom-select-option" data-value="Ashland">Ashland</div>
+                                    <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
