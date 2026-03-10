@@ -112,6 +112,13 @@ header {
     overflow: visible;
 }
 
+/* Disable buttons and other triggers in the selector card when a dropdown is active */
+body.has-custom-select-open .selector-card button,
+body.has-custom-select-open .custom-select:not(.open) .custom-select-trigger {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
 .selector-group {
     margin-bottom: 1rem;
 }
@@ -152,7 +159,7 @@ label {
     border-radius: 10px;
     cursor: pointer;
     text-align: left;
-    transition: border-color 0.2s, box-shadow 0.2s, border-radius 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+    transition: opacity 0.1s ease-out, border-color 0.2s, box-shadow 0.2s, pointer-events 0s linear 0.1s;
     display: flex;
     align-items: center;
     -webkit-tap-highlight-color: transparent;
@@ -163,14 +170,13 @@ label {
 }
 
 .custom-select-trigger:hover {
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .custom-select.open .custom-select-trigger {
-    border-color: rgba(255, 255, 255, 0.15);
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .custom-select-trigger .select-arrow {
@@ -182,7 +188,7 @@ label {
     pointer-events: none;
     font-size: 1.4rem;
     font-variation-settings: 'wght' 500;
-    transition: color 0.2s, transform 0.2s;
+    transition: color 0.2s;
 }
 
 .custom-select-trigger:hover .select-arrow {
@@ -190,59 +196,65 @@ label {
 }
 
 .custom-select.open .select-arrow {
-    transform: translateY(-50%) rotate(180deg);
     color: #fff;
 }
 
 .custom-select-options {
     position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
+    top: 0;
+    left: 8px;
+    right: 8px;
     z-index: 1000;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    /* Expand inset to allow shadow to bleed out on sides and bottom */
-    clip-path: inset(0 -100px 100% -100px);
     opacity: 0;
-    /* Use a premium Quintic ease-out for a more natural feel */
-    transition: clip-path 0.18s cubic-bezier(0.23, 1, 0.32, 1), 
-                opacity 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+    visibility: hidden;
     pointer-events: none;
     background: transparent;
     border: none;
+    /* Static positioning - NOT transitioned to avoid sliding */
+    transform: translateY(var(--dropdown-offset, 0px));
+    /* Delay removing visibility/pointer-events until the opacity fade finishes to avoid hit-test layout thrashing during animation */
+    transition: opacity 0.1s ease-out, visibility 0s linear 0.1s, pointer-events 0s linear 0.1s;
+    will-change: opacity, visibility;
 }
 
 .custom-select-panel {
     background: #181822;
     border: 1px solid var(--border-color);
-    border-top: none;
-    border-radius: 0 0 10px 10px;
+    border-radius: 12px;
     overflow: hidden;
-    /* Key to clipping the scrollbar radius in Firefox */
-    /* Starting position for the slide down effect */
-    transform: translateY(-10px);
-    transition: transform 0.18s cubic-bezier(0.23, 1, 0.32, 1),
-                border-color 0.15s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    /* Exit shrink animation - synced to 0.1s close */
+    transform: scale(0.96);
+    transition: transform 0.1s ease-out;
+
+    /* Hardware acceleration for smooth mobile popping */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 .custom-select-list {
     position: relative;
-    max-height: 300px;
+    max-height: 96vh;
+    /* Maximize visibility to fit all items without cutting off stations */
     overflow-y: auto;
-    /* Firefox scrollbar styling */
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .custom-select.open .custom-select-options {
-    clip-path: inset(0 -100px -100px -100px);
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
+    /* Delay interaction until animation finishes to prevent accidental touch highlights on mobile */
+    transition: opacity 0.1s ease-out, visibility 0s linear 0s, pointer-events 0s linear 0.1s;
 }
 
 .custom-select.open .custom-select-panel {
+    transform: scale(1);
     border-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(0);
+    /* Smooth elastic pop on opening */
+    transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1), border-color 0.15s ease;
 }
 
 
@@ -266,15 +278,26 @@ label {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
-.custom-select-option:not(.disabled):hover {
-    background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+    .custom-select-option:not(.disabled):hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
 }
 
+/* On mobile, only allow hover states *after* the popup has been open for 0.75s to prevent sticky flash on open */
+@media (hover: none) {
+    .custom-select.hover-ready .custom-select-option:not(.disabled):active {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
 
 .custom-select-option.selected {
     color: var(--blue-accent);
+    background: rgba(59, 130, 246, 0.08);
     font-weight: 600;
     display: flex;
     justify-content: space-between;
@@ -294,6 +317,7 @@ label {
 
 .custom-select-option.origin-station {
     font-weight: 500;
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .origin-badge {
@@ -308,6 +332,11 @@ label {
     color: var(--text-muted);
     line-height: 1;
     margin-left: 0.5rem;
+}
+
+/* Remove "No destination" option from the visible list */
+#destinationSelect .custom-select-option[data-value=""] {
+    display: none;
 }
 
 /* Scrollbar styling for dropdown */
@@ -343,7 +372,7 @@ label {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: opacity 0.1s ease-out, transform 0.2s, border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s, pointer-events 0s linear 0.1s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -573,7 +602,7 @@ a.schedule-badge:hover {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    transition: color 0.2s, border-color 0.2s, opacity 0.1s;
+    transition: opacity 0.1s ease-out, color 0.2s, border-color 0.2s, pointer-events 0s linear 0.1s;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -992,5 +1021,13 @@ footer {
 
     footer {
         padding-top: 1rem;
+    }
+
+    /* Disable links and buttons outside selector card when popup is open on mobile */
+    body.has-custom-select-open .schedule-badge,
+    body.has-custom-select-open .show-more-btn,
+    body.has-custom-select-open footer a {
+        pointer-events: none;
+        opacity: 0.5;
     }
 }

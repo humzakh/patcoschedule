@@ -46,7 +46,7 @@ function setCustomSelectValue(selectEl, value, updateList = true) {
             trigger.classList.remove('placeholder');
         }
     }
-    
+
     // Update selected class on options only if requested
     if (updateList) {
         selectEl.querySelectorAll('.custom-select-option').forEach(o => {
@@ -55,74 +55,143 @@ function setCustomSelectValue(selectEl, value, updateList = true) {
     }
 }
 
-function closeAllCustomSelects(except) {
+function closeAllCustomSelects(except = null) {
     document.querySelectorAll('.custom-select.open').forEach(s => {
-        if (s !== except) s.classList.remove('open');
+        if (s !== except) {
+            s.classList.remove('open');
+            s.classList.remove('hover-ready');
+            clearTimeout(s.hoverTimeout);
+        }
     });
+    updateBodyLock();
 }
 
-function setupCustomSelect(selectEl, onChange, opts = {}) {
+function updateBodyLock() {
+    const anyOpen = document.querySelector('.custom-select.open');
+    if (!anyOpen) {
+        document.body.classList.remove('has-custom-select-open');
+    }
+}
+
+function setupCustomSelect(selectEl, onChange) {
     const trigger = selectEl.querySelector('.custom-select-trigger');
-    const scrollTarget = opts.scrollTarget || '.custom-select-option.selected';
+    const optionsPanel = selectEl.querySelector('.custom-select-options');
+    const list = selectEl.querySelector('.custom-select-list');
 
     trigger.addEventListener('click', (e) => {
         e.stopPropagation();
-        const wasOpen = selectEl.classList.contains('open');
-        closeAllCustomSelects();
-        if (!wasOpen) {
-            // Pre-scroll before opening so the dropdown reveals at the right position
-            const selector = typeof scrollTarget === 'function' ? scrollTarget() : scrollTarget;
-            const target = selectEl.querySelector(selector);
-            if (target) {
-                const optionsList = selectEl.querySelector('.custom-select-list');
-                
-                // Helper to find the visual element immediately above another element, 
-                // even across group boundaries.
-                const getPrevVisual = (el) => {
-                    if (el.previousElementSibling) return el.previousElementSibling;
-                    const parent = el.parentElement;
-                    if (parent && parent.classList.contains('custom-select-group')) {
-                        const prevGroup = parent.previousElementSibling;
-                        if (prevGroup) return prevGroup.lastElementChild;
-                    }
-                    return null;
-                };
 
-                let peekTarget = getPrevVisual(target);
-                // If the item above is a group header, peek one more to show a station above it
-                if (peekTarget && peekTarget.classList.contains('custom-select-group-label')) {
-                    const aboveHeader = getPrevVisual(peekTarget);
-                    if (aboveHeader) peekTarget = aboveHeader;
+        if (selectEl.classList.contains('open')) {
+            selectEl.classList.remove('open');
+            selectEl.classList.remove('hover-ready');
+            clearTimeout(selectEl.hoverTimeout);
+            updateBodyLock();
+        } else {
+            closeAllCustomSelects(selectEl);
+            document.body.classList.add('has-custom-select-open');
+
+            // Calculate Centering Offset
+            const triggerRect = trigger.getBoundingClientRect();
+            const selectedOpt = selectEl.querySelector('.custom-select-option.selected:not([data-value=""])') ||
+                selectEl.querySelector('.custom-select-option.origin-station') ||
+                selectEl.querySelector('.custom-select-option');
+
+            if (selectedOpt) {
+                // --- BATCH DOM READS ---
+                // We need to temporarily ensure the panel is display:block to measure it,
+                // but we do this without causing thrashing by taking all measurements immediately.
+                const wasHidden = optionsPanel.style.display === 'none';
+                if (wasHidden) optionsPanel.style.display = 'block';
+
+                const triggerHeight = trigger.getBoundingClientRect().height;
+                const optOffsetTop = selectedOpt.offsetTop;
+                const optHeight = selectedOpt.offsetHeight;
+                const listHeight = list.offsetHeight;
+                const panelHeight = optionsPanel.offsetHeight;
+
+                // Read viewport boundaries
+                const triggerTop = triggerRect.top;
+                const windowHeight = window.innerHeight;
+
+                // --- CALCULATE OFFSETS (No DOM access) ---
+                // We want: selectedOpt middle Y to align with trigger middle Y
+                // Figure out perfectly where the scroll top should be to center the item in the list view
+                const idealScrollTop = optOffsetTop - (listHeight / 2) + (optHeight / 2);
+
+                // But scrollTop is clamped between 0 and maxScroll, so calculate the "actual" scroll
+                // We're calculating what the browser WOULD clamp it to.
+                // maxScroll requires knowing scrollHeight, but we can just set it and read it back
+                // *after* our batch reads. However, to avoid another reflow, we'll accept a 
+                // minor approximation or just do the write phase smartly.
+
+                // --- BATCH DOM WRITES ---
+                // 1. Set the scroll position
+                list.scrollTop = idealScrollTop;
+
+                // 2. Now that scroll is set, we need to know exactly where it landed to calculate the panel shift.
+                // Reading scrollTop here technically causes ONE reflow, but it's unavoidable and 
+                // much better than the 3-4 reflows we had before.
+                const actualScrollTop = list.scrollTop;
+
+                // 3. Calculate panel offset to align the now-scrolled item with the trigger
+                let offset = (triggerHeight / 2) - (optOffsetTop - actualScrollTop + (optHeight / 2));
+
+                // 4. Viewport boundary safety clamped
+                const padding = 10;
+                const absoluteTop = triggerTop + offset;
+                const absoluteBottom = absoluteTop + panelHeight;
+
+                if (absoluteTop < padding) {
+                    offset += (padding - absoluteTop);
+                } else if (absoluteBottom > windowHeight - padding) {
+                    offset -= (absoluteBottom - (windowHeight - padding));
                 }
-                
-                const scrollPos = peekTarget ? peekTarget.offsetTop : target.offsetTop;
-                optionsList.scrollTop = scrollPos - 8;
+
+                // 5. Apply final transforms and cleanup
+                optionsPanel.style.setProperty('--dropdown-offset', `${offset}px`);
+                if (wasHidden) optionsPanel.style.display = '';
             }
+
             selectEl.classList.add('open');
+            // Allow mobile hover states only after the popup is fully open
+            selectEl.hoverTimeout = setTimeout(() => {
+                selectEl.classList.add('hover-ready');
+            }, 250);
         }
     });
 
-    // Prevent clicks inside the options panel (on headers, disabled items, etc.) from closing the dropdown
-    const optionsPanel = selectEl.querySelector('.custom-select-options');
     optionsPanel.addEventListener('click', (e) => e.stopPropagation());
 
     selectEl.querySelectorAll('.custom-select-option').forEach(opt => {
         opt.addEventListener('click', (e) => {
-            // Close dropdown if clicking an unselectable item (marked as disabled)
-            if (opt.classList.contains('disabled')) {
-                selectEl.classList.remove('open');
+            // On mobile (touch screens), ignore clicks on options until the hover-ready delay has finished.
+            // This safely swallows the tap without letting it bubble to the document close listener.
+            if (window.matchMedia("(hover: none)").matches && !selectEl.classList.contains('hover-ready')) {
+                e.stopPropagation();
                 return;
             }
 
+            if (opt.classList.contains('disabled')) {
+                selectEl.classList.remove('open');
+                selectEl.classList.remove('hover-ready');
+                clearTimeout(selectEl.hoverTimeout);
+                updateBodyLock();
+                return;
+            }
             const val = opt.dataset.value;
             setCustomSelectValue(selectEl, val);
             selectEl.classList.remove('open');
+            selectEl.classList.remove('hover-ready');
+            clearTimeout(selectEl.hoverTimeout);
+            updateBodyLock();
             if (onChange) onChange(val);
         });
     });
 }
 
-// Close on outside click
+
+
+// Close on outside click/tap
 document.addEventListener('click', () => closeAllCustomSelects());
 // Close on Escape
 document.addEventListener('keydown', (e) => {
@@ -271,7 +340,7 @@ setupCustomSelect(document.getElementById('destinationSelect'), (val) => {
     const noDestOpt = document.querySelector('#destinationSelect .custom-select-option[data-value=""]');
     if (noDestOpt) noDestOpt.style.display = currentDestination ? 'none' : '';
     loadTrains(false);
-}, { scrollTarget: () => currentDestination ? '.custom-select-option.selected' : '.custom-select-option.origin-station' });
+});
 
 // Ensure the station dropdown loads in the correct order for the cached direction
 updateStationOrder();
@@ -978,7 +1047,7 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const newDirection = btn.dataset.direction;
         const isOpen = !!document.querySelector('.custom-select.open');
-        
+
         // Close dropdowns immediately regardless of whether we change direction
         closeAllCustomSelects();
 
