@@ -27,18 +27,14 @@ const activeBtn = document.querySelector(`.direction-btn[data-direction="${curre
 if (activeBtn) activeBtn.classList.add('active');
 
 // Custom select helpers
-function setCustomSelectValue(selectEl, value) {
+function setCustomSelectValue(selectEl, value, updateList = true) {
     selectEl.dataset.value = value;
     const trigger = selectEl.querySelector('.custom-select-trigger');
     const valueSpan = trigger.querySelector('.custom-select-value');
     if (value) {
         const opt = selectEl.querySelector(`.custom-select-option[data-value="${CSS.escape(value)}"]`);
-        let text = opt ? opt.textContent : value;
-        // Ensure destination label doesn't show the "Origin" marker
-        if (selectEl.id === 'destinationSelect' && text) {
-            text = text.split(' \u2022')[0];
-        }
-        valueSpan.textContent = text;
+        // Use data-value for the trigger text to ensure it's clean (no badges/bullets)
+        valueSpan.textContent = opt ? opt.dataset.value : value;
         trigger.classList.remove('placeholder');
     } else {
         // For stationSelect show placeholder, for destination show "No destination"
@@ -50,10 +46,13 @@ function setCustomSelectValue(selectEl, value) {
             trigger.classList.remove('placeholder');
         }
     }
-    // Update selected class on options
-    selectEl.querySelectorAll('.custom-select-option').forEach(o => {
-        o.classList.toggle('selected', o.dataset.value === value);
-    });
+    
+    // Update selected class on options only if requested
+    if (updateList) {
+        selectEl.querySelectorAll('.custom-select-option').forEach(o => {
+            o.classList.toggle('selected', o.dataset.value === value);
+        });
+    }
 }
 
 function closeAllCustomSelects(except) {
@@ -509,7 +508,7 @@ function updateDestinationDropdown() {
         const stIdx = stationOrder.indexOf(opt.dataset.value);
         if (opt.dataset.value === currentStation) {
             opt.classList.add('disabled', 'origin-station');
-            opt.textContent = opt.dataset.value + ' \u2022 Origin';
+            opt.innerHTML = `<span>${opt.dataset.value}</span><span class="origin-badge">Origin</span>`;
         } else if (stIdx >= 0 && stIdx <= originIdx) {
             // Upstream station
             opt.classList.add('disabled');
@@ -977,10 +976,14 @@ document.getElementById('clearDestination').addEventListener('click', () => {
 
 document.querySelectorAll('.direction-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        const newDirection = btn.dataset.direction;
         const isOpen = !!document.querySelector('.custom-select.open');
         
-        // Close dropdowns immediately so the closing animation starts
+        // Close dropdowns immediately regardless of whether we change direction
         closeAllCustomSelects();
+
+        // If clicking the already active direction, do nothing else
+        if (newDirection === currentDirection) return;
 
         // 1. Instant UI Updates (Buttons, Train Data, Trigger Text)
         document.querySelectorAll('.direction-btn').forEach(b => {
@@ -990,7 +993,7 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
         });
         btn.classList.add('active');
 
-        currentDirection = btn.dataset.direction;
+        currentDirection = newDirection;
         localStorage.setItem('patco_direction', currentDirection);
 
         // Swap station and destination when changing direction
@@ -1002,8 +1005,8 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
             localStorage.setItem('patco_station', currentStation);
             localStorage.setItem('patco_destination', currentDestination);
 
-            setCustomSelectValue(document.getElementById('stationSelect'), currentStation);
-            setCustomSelectValue(document.getElementById('destinationSelect'), currentDestination);
+            setCustomSelectValue(document.getElementById('stationSelect'), currentStation, !isOpen);
+            setCustomSelectValue(document.getElementById('destinationSelect'), currentDestination, !isOpen);
 
             const geoIcon = document.querySelector('#findMe .geo-icon');
             if (geoIcon) geoIcon.textContent = 'location_searching';
