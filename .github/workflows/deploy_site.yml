@@ -19,12 +19,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Cache-bust asset URLs
-        run: sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html
+        run: |
+          sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html
+          sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" app/static/js/script.js app/static/js/worker.js
       - name: Stage site files
         run: |
           mkdir -p _site
           cp index.html _site/
           cp manifest.json _site/
+          cp sw.js _site/
+          cp favicon.ico _site/
           cp CNAME _site/
           cp -r app _site/app
       - name: Setup Pages

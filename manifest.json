@@ -8,7 +8,7 @@
     "theme_color": "#c30032",
     "icons": [
         {
-            "src": "app/static/images/patco-icon.svg",
+            "src": "app/static/images/patcoschedule-icon.svg",
             "sizes": "any",
             "type": "image/svg+xml",
             "purpose": "any maskable"
