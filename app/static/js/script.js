@@ -1,6 +1,9 @@
 let currentStation = localStorage.getItem('patco_station') || '';
 let currentDirection = localStorage.getItem('patco_direction') || 'eastbound';
 let currentDestination = localStorage.getItem('patco_destination') || '';
+let isStationFromGeo = false;
+let geoClearTimeout = null;
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0);
 
 // The loaded JSON data
 let patcoData = null;
@@ -27,14 +30,20 @@ const activeBtn = document.querySelector(`.direction-btn[data-direction="${curre
 if (activeBtn) activeBtn.classList.add('active');
 
 // Custom select helpers
-function setCustomSelectValue(selectEl, value, updateList = true) {
+function setCustomSelectValue(selectEl, value, updateList = true, fromGeo = false) {
     selectEl.dataset.value = value;
     const trigger = selectEl.querySelector('.custom-select-trigger');
     const valueSpan = trigger.querySelector('.custom-select-value');
     if (value) {
         const opt = selectEl.querySelector(`.custom-select-option[data-value="${CSS.escape(value)}"]`);
         // Use data-value for the trigger text to ensure it's clean (no badges/bullets)
-        valueSpan.textContent = opt ? opt.dataset.value : value;
+        let displayText = opt ? opt.dataset.value : value;
+        
+        if (fromGeo && selectEl.id === 'stationSelect') {
+            valueSpan.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: text-bottom; margin-right: 6px; color: var(--text-secondary);">my_location</span>${displayText}`;
+        } else {
+            valueSpan.textContent = displayText;
+        }
         trigger.classList.remove('placeholder');
     } else {
         // For stationSelect show placeholder, for destination show "No destination"
@@ -179,7 +188,12 @@ function setupCustomSelect(selectEl, onChange) {
                 return;
             }
             const val = opt.dataset.value;
-            setCustomSelectValue(selectEl, val);
+            isStationFromGeo = false; // Manually clicked, clear GPS flag
+            if (geoClearTimeout) {
+                clearTimeout(geoClearTimeout);
+                geoClearTimeout = null;
+            }
+            setCustomSelectValue(selectEl, val, true, false);
             selectEl.classList.remove('open');
             selectEl.classList.remove('hover-ready');
             clearTimeout(selectEl.hoverTimeout);
@@ -257,14 +271,29 @@ function handleGeolocation() {
 
         if (nearest) {
             currentStation = nearest;
+            isStationFromGeo = true; // Flag that this station came from GPS
             localStorage.setItem('patco_station', currentStation);
-            setCustomSelectValue(document.getElementById('stationSelect'), currentStation);
+            setCustomSelectValue(document.getElementById('stationSelect'), currentStation, true, true);
 
             updateDestinationDropdown();
             updateTrains(true);
 
             const icon = btn.querySelector('.geo-icon');
             if (icon) icon.textContent = 'my_location';
+
+            // Clear the "Near Me" visual status after 5 minutes
+            if (geoClearTimeout) {
+                clearTimeout(geoClearTimeout);
+            }
+            geoClearTimeout = setTimeout(() => {
+                if (isStationFromGeo) {
+                    isStationFromGeo = false;
+                    const select = document.getElementById('stationSelect');
+                    if (select.dataset.value === currentStation) {
+                        setCustomSelectValue(select, currentStation, true, false);
+                    }
+                }
+            }, 300000);
         }
 
         btn.classList.remove('geo-loading');
@@ -479,7 +508,7 @@ function updateStationOrder() {
 
     // Make sure we set the cached station immediately if one exists
     if (currentStation) {
-        setCustomSelectValue(select, currentStation);
+        setCustomSelectValue(select, currentStation, true, isStationFromGeo);
     }
 
     // The HTML is hardcoded in the Eastbound sequence.
@@ -856,6 +885,7 @@ function loadTrains(showLoading = true) {
 
 function renderTrains(data) {
     if (!data.trains || data.trains.length === 0) {
+        document.title = "PATCO Schedule";
         document.getElementById('trainInfo').innerHTML = `
         <div class="card">
             <div class="loading">
@@ -882,6 +912,14 @@ function renderTrains(data) {
     currentTrainColor = countdownColor;
 
     const isLongWait = next.minutes >= 60;
+    
+    // Dynamically update the document title with the next train countdown (Desktop only)
+    if (isLongWait || isMobile) {
+        document.title = "PATCO Schedule";
+    } else {
+        const timeText = next.minutes <= 1 ? "< 1 min" : `${next.minutes} mins`;
+        document.title = `PATCO Schedule | ${timeText}`;
+    }
 
     // Format the top-level today schedule badge
     let displayNextSchedule = next.schedule;
@@ -1071,6 +1109,12 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
             currentStation = currentDestination;
             currentDestination = oldStation;
 
+            isStationFromGeo = false;
+            if (geoClearTimeout) {
+                clearTimeout(geoClearTimeout);
+                geoClearTimeout = null;
+            }
+
             localStorage.setItem('patco_station', currentStation);
             localStorage.setItem('patco_destination', currentDestination);
 
@@ -1133,9 +1177,44 @@ function startRefreshTimer() {
 // Kickoff
 loadData();
 
-setInterval(() => {
-    loadData();
-}, DATA_REFRESH_INTERVAL);
+// Initialize the reliable background Web Worker
+let countdownWorker;
+if (window.Worker) {
+    // Append timestamp to worker URL to bypass local script caching during updates
+    countdownWorker = new Worker(`/app/static/js/worker.js?v=${new Date().getTime()}`);
+    
+    countdownWorker.onmessage = function(e) {
+        if (e.data === 'fetch') {
+            loadData();
+        } else if (e.data === 'tick') {
+            refreshCountdown--;
+            if (refreshCountdown <= 0) {
+                loadTrains(false);
+                refreshCountdown = 60 - new Date().getSeconds();
+                if (refreshCountdown <= 0) refreshCountdown = 60;
+            }
+            updateRefreshRing();
+        }
+    };
+    
+    // Start the worker timers (1s tick, and the DATA_REFRESH_INTERVAL data fetch)
+    countdownWorker.postMessage({ type: 'start', interval: DATA_REFRESH_INTERVAL });
+} else {
+    // Legacy fallback for extremely old browsers without Worker support
+    setInterval(() => {
+        loadData();
+    }, DATA_REFRESH_INTERVAL);
+    
+    setInterval(() => {
+        refreshCountdown--;
+        if (refreshCountdown <= 0) {
+            loadTrains(false);
+            refreshCountdown = 60 - new Date().getSeconds();
+            if (refreshCountdown <= 0) refreshCountdown = 60;
+        }
+        updateRefreshRing();
+    }, 1000);
+}
 
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
@@ -1147,12 +1226,13 @@ document.addEventListener('visibilitychange', () => {
 });
 startRefreshTimer();
 
-setInterval(() => {
-    refreshCountdown--;
-    if (refreshCountdown <= 0) {
-        loadTrains(false);
-        refreshCountdown = 60 - new Date().getSeconds();
-        if (refreshCountdown <= 0) refreshCountdown = 60;
-    }
-    updateRefreshRing();
-}, 1000);
+// Register Service Worker for Offline PWA Support
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js?v=__CACHE_BUST__').then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }).catch(err => {
+            console.warn('ServiceWorker registration failed: ', err);
+        });
+    });
+}
