@@ -66,23 +66,41 @@ body {
 
 header {
     text-align: center;
+    margin-top: 0.5rem;
     margin-bottom: 2rem;
 }
 
 .logo {
-    font-size: 2.5rem;
-    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
     color: var(--patco-red);
-    margin-bottom: 0.25rem;
+    width: 100%;
 }
 
 .patco-logo-img {
-    height: 0.75em;
-    width: 5.36em;
-    /* 0.75em * (250/35) */
-    display: inline-block;
-    vertical-align: -3%;
+    width: 63.13%;
+    /* (250/396) Relative to SCHEDULE wordmark */
+    max-width: 252px;
+    /* Scaled proportionally to 400px */
+    aspect-ratio: 250/35;
+    display: block;
     background-image: url('../images/patco.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.schedule-logo-img {
+    width: 100%;
+    max-width: 400px;
+    /* Split the difference between 360px and 420px */
+    aspect-ratio: 396/35;
+    display: block;
+    background-image: url('../images/schedule.svg');
     background-size: contain;
     background-repeat: no-repeat;
     pointer-events: none;
@@ -1000,7 +1018,17 @@ footer {
     }
 
     header {
-        margin-bottom: 1rem;
+        margin-top: 0.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .patco-logo-img {
+        width: 53.67%;
+        /* Scales height to exactly match the 85% wide Schedule line */
+    }
+
+    .schedule-logo-img {
+        width: 85%;
     }
 
     .card {
