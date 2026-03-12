@@ -1,7 +1,7 @@
 {
     "name": "PATCO Schedule",
     "short_name": "PATCO",
-    "description": "PATCO train schedule and next train tracker",
+    "description": "PATCO train schedule",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0a0a0f",

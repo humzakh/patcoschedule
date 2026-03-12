@@ -1,5 +1,5 @@
-const CACHE_NAME = 'patco-schedule-v9';
-const DATA_CACHE_NAME = 'patco-data-cache-v9';
+const CACHE_NAME = 'patco-schedule-v11';
+const DATA_CACHE_NAME = 'patco-data-cache-v11';
 const APP_SHELL = [
     '/',
     '/index.html',
@@ -10,6 +10,7 @@ const APP_SHELL = [
     '/app/static/js/worker.js',
     '/app/static/images/patcoschedule-icon.svg',
     '/app/static/images/patco.svg',
+    '/app/static/images/schedule.svg',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
     'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
 ];
@@ -47,7 +48,7 @@ self.addEventListener('fetch', event => {
         // Data Strategy: Network First, falling back to cache
         // We strip the query parameters (e.g. ?t=12345) when storing and retrieving from cache.
         const cleanUrl = event.request.url.split('?')[0];
-        
+
         event.respondWith(
             fetch(event.request)
                 .then(response => {
@@ -55,7 +56,7 @@ self.addEventListener('fetch', event => {
                     if (!response || response.status !== 200 || response.type !== 'basic' && response.type !== 'cors') {
                         return response;
                     }
-                    
+
                     // Clone and cache the valid response
                     const responseToCache = response.clone();
                     caches.open(DATA_CACHE_NAME).then(cache => {
@@ -91,7 +92,7 @@ self.addEventListener('fetch', event => {
                 }).catch(() => {
                     console.log('[Service Worker] Failed to fetch font, using cache if available');
                 });
-                
+
                 // Return cached font immediately if present, otherwise wait for network
                 return cachedResponse || fetchPromise;
             })
