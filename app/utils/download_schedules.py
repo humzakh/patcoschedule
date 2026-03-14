@@ -12,6 +12,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
@@ -19,7 +21,6 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "data" / "schedules" / "sourc
 PDF_DIR_STANDARD = OUTPUT_DIR / "standard"
 PDF_DIR_SPECIAL = OUTPUT_DIR / "special"
 MAX_AGE_DAYS = 7
-
 
 def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> int:
     """
@@ -41,11 +42,30 @@ def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> 
     return deleted
 
 
+def get_retry_session(retries: int = 5, backoff_factor: float = 0.5, status_forcelist: tuple = (500, 502, 503, 504)) -> requests.Session:
+    """
+    Creates a requests session with a retry strategy.
+    """
+    session = requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
 def fetch_pdf_links(url: str) -> list[dict]:
     """
     Fetch the schedules page and extract all PDF links.
     """
-    response = requests.get(url, timeout=30)
+    session = get_retry_session()
+    response = session.get(url, timeout=30)
     response.raise_for_status()
     
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -106,7 +126,8 @@ def download_pdf(url: str, output_path: Path, skip_existing: bool = True) -> boo
     
     try:
         print(f"  Downloading: {url}")
-        response = requests.get(url, timeout=60)
+        session = get_retry_session()
+        response = session.get(url, timeout=60)
         response.raise_for_status()
         new_content = response.content
         
