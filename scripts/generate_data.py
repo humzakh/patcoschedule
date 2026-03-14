@@ -5,17 +5,16 @@ This script extracts timetables and converts them into structured JSON files for
 """
 
 import json
-import os
 import sys
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, date
 
-# Add the project root to the python path so we can import from app.utils
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+# Add the project root to the python path so we can import from scripts
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.utils.download_schedules import download_all
-from app.utils.extract_timetable import extract_all
+from scripts.download_schedules import download_all
+from scripts.extract_timetable import extract_all, STATIONS_WESTBOUND, STATIONS_EASTBOUND
 
 
 def main():
@@ -24,8 +23,7 @@ def main():
     print("=" * 60)
     
     # 1. Paths
-    app_dir = project_root / "app"
-    data_dir = project_root / "data"
+    data_dir = PROJECT_ROOT / "data"
     schedules_dir = data_dir / "schedules"
     csv_dir = schedules_dir / "parsed_csvs"
     
@@ -154,9 +152,6 @@ def main():
                   schedules['special'][special_key]['url'] = special_url
                   
              schedules['special'][special_key][direction] = data
-
-
-    from app.utils.extract_timetable import STATIONS_WESTBOUND, STATIONS_EASTBOUND
     
     output_data = {
         'last_updated': datetime.now().isoformat(),

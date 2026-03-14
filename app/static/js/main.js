@@ -53,7 +53,6 @@ document.addEventListener('keydown', (e) => {
 
 document.getElementById('findMe').addEventListener('click', () => {
     handleGeolocation({
-        onSuccess: () => {},
         updateTrains,
         updateDestinationDropdown,
         setCustomSelectValue
@@ -181,8 +180,21 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js?v=__CACHE_BUST__').then(registration => {
             console.log('ServiceWorker registration successful');
+
+            // Check for updates periodically
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000); // Check every hour
         }).catch(err => {
             console.warn('ServiceWorker registration failed', err);
         });
+    });
+
+    // Reload the page when a new Service Worker takes control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
     });
 }

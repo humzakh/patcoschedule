@@ -6,21 +6,20 @@ Features:
 - Cleans up files older than 7 days
 """
 
-import re
 import requests
-from pathlib import Path
-from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from datetime import datetime, timedelta    
+from pathlib import Path
 from requests.adapters import HTTPAdapter
+from urllib.parse import urljoin
 from urllib3.util.retry import Retry
 
-
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
-OUTPUT_DIR = Path(__file__).parent.parent.parent / "data" / "schedules" / "source_pdfs"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "schedules" / "source_pdfs"
 PDF_DIR_STANDARD = OUTPUT_DIR / "standard"
 PDF_DIR_SPECIAL = OUTPUT_DIR / "special"
 MAX_AGE_DAYS = 7
+
 
 def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> int:
     """
