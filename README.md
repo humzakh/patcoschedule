@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://patcoschedule.com">
-    <img src="app/static/images/patco.svg" width="257" height="36"><br>
-    <img src="app/static/images/schedule.svg" width="407" height="36">
+    <img src="app/images/patco.svg" width="257" height="36"><br>
+    <img src="app/images/schedule.svg" width="407" height="36">
   </a>
 </p>
 

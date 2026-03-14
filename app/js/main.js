@@ -135,7 +135,7 @@ loadData({ updateTrains, updateDestinationDropdown });
 // Web Worker Setup
 let countdownWorker;
 if (window.Worker) {
-    countdownWorker = new Worker(`/app/static/js/worker.js?v=${new Date().getTime()}`);
+    countdownWorker = new Worker(`/app/js/worker.js?v=${new Date().getTime()}`);
     countdownWorker.onmessage = function(e) {
         if (e.data === 'fetch') {
             loadData({ updateTrains, updateDestinationDropdown });
