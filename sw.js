@@ -1,12 +1,18 @@
-const CACHE_NAME = 'patco-schedule-v11';
-const DATA_CACHE_NAME = 'patco-data-cache-v11';
+const CACHE_NAME = 'patco-schedule-__CACHE_BUST__';
+const DATA_CACHE_NAME = 'patco-data-cache-__CACHE_BUST__';
 const APP_SHELL = [
     '/',
     '/index.html',
     '/manifest.json',
     '/favicon.ico',
     '/app/static/css/style.css',
-    '/app/static/js/script.js',
+    '/app/static/js/constants.js',
+    '/app/static/js/state.js',
+    '/app/static/js/utils.js',
+    '/app/static/js/geo.js',
+    '/app/static/js/data.js',
+    '/app/static/js/ui.js',
+    '/app/static/js/main.js',
     '/app/static/js/worker.js',
     '/app/static/images/patcoschedule-icon.svg',
     '/app/static/images/patco.svg',

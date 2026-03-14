@@ -47,7 +47,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'BlinkMacSystemFont', 'Inter', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
