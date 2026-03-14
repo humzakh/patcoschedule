@@ -27,7 +27,7 @@ export function getNearestStation(lat, lon) {
 }
 
 export function handleGeolocation(callbacks) {
-    const { onSuccess: onGeoSuccess, updateTrains, updateDestinationDropdown, setCustomSelectValue } = callbacks;
+    const { updateTrains, updateDestinationDropdown, setCustomSelectValue } = callbacks;
     
     const btn = document.getElementById('findMe');
     if (!navigator.geolocation) {

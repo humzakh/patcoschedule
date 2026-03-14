@@ -23,12 +23,6 @@ export function parseTime(timeStr, nyDate, dayOffset = 0) {
     return d;
 }
 
-export function getScheduleType(nyDate) {
-    const day = nyDate.getDay();
-    if (day === 6) return 'saturday';
-    if (day === 0) return 'sunday';
-    return 'weekday';
-}
 
 export function formatTime(timeStr) {
     if (!timeStr) return timeStr;

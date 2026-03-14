@@ -103,18 +103,21 @@ self.addEventListener('fetch', event => {
                 return cachedResponse || fetchPromise;
             })
         );
+    } else if (event.request.mode === 'navigate') {
+        // Navigation Strategy: Network First
+        // This ensures the user gets the latest index.html if online, 
+        // preventing the "stuck on old version" cache trap.
+        event.respondWith(
+            fetch(event.request).catch(() => {
+                return caches.match('/index.html', { ignoreSearch: true });
+            })
+        );
     } else {
         // App Shell Strategy: Cache First, falling back to network
-        // We use ignoreSearch: true so that requests with ?v=... still match the clean cached files
+        // Used for static assets like CSS, JS, and images.
         event.respondWith(
             caches.match(event.request, { ignoreSearch: true }).then(response => {
-                return response || fetch(event.request).catch((err) => {
-                    // Provide a generic fallback for navigation requests if network fails
-                    if (event.request.mode === 'navigate') {
-                        return caches.match('/index.html', { ignoreSearch: true });
-                    }
-                    throw err;
-                });
+                return response || fetch(event.request);
             })
         );
     }
