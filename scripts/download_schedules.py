@@ -162,9 +162,22 @@ def download_all(skip_existing: bool = True, cleanup: bool = True) -> list[Path]
         if deleted:
             print(f"Cleaned up {deleted} old special file(s)\n")
     
-    # Fetch PDF links
-    print(f"Fetching: {SCHEDULES_URL}")
-    pdfs = fetch_pdf_links(SCHEDULES_URL)
+    # Fetch PDF links with retry on timeout
+    import time
+    max_attempts = 5
+    pdfs = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            print(f"Fetching: {SCHEDULES_URL}" + (f" (attempt {attempt}/{max_attempts})" if attempt > 1 else ""))
+            pdfs = fetch_pdf_links(SCHEDULES_URL)
+            break
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
+            if attempt < max_attempts:
+                print(f"  Connection failed: {e}")
+                print(f"  Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                raise
     
     if not pdfs:
         print("No PDFs found!")

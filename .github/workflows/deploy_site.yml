@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
@@ -17,10 +20,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Cache-bust asset URLs
         run: |
-          sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html sw.js app/static/js/*.js
+          sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html sw.js app/js/*.js
       - name: Stage site files
         run: |
           mkdir -p _site
