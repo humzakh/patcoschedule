@@ -164,7 +164,7 @@ export async function loadData(callbacks) {
     const { updateTrains, updateDestinationDropdown } = callbacks;
     try {
         updateTrains();
-        const res = await fetch(`${DATA_URL}?t=${new Date().getTime()}`);
+        const res = await fetch(`${DATA_URL}?t=${new Date().getTime()}`, { cache: 'no-store' });
         state.patcoData = await res.json();
         state.lastFetchTime = Date.now();
         updateDestinationDropdown();

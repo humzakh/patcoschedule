@@ -22,12 +22,37 @@ const APP_SHELL = [
 ];
 
 
-// Install Event: Cache App Shell
+// Install Event: Cache App Shell with Cache Busting
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
+        caches.open(CACHE_NAME).then(async cache => {
             console.log('[Service Worker] Caching Application Shell');
-            return cache.addAll(APP_SHELL);
+
+            const bust = '__CACHE_BUST__';
+            const cachePromises = APP_SHELL.map(async (url) => {
+                try {
+                    // Create a versioned URL for the fetch to ensure we get fresh content from the network
+                    const versionedUrl = new URL(url, self.location.href);
+
+                    // Only apply cache busting to local assets (same origin)
+                    if (versionedUrl.origin === self.location.origin) {
+                        versionedUrl.searchParams.set('v', bust);
+                    }
+
+                    // Fetch from network, bypassing the browser's intermediate HTTP cache
+                    const response = await fetch(versionedUrl, { cache: 'reload' });
+
+                    if (response.ok) {
+                        // Store the response in the cache under its clean, canonical URL
+                        // so that caches.match(event.request) works as expected.
+                        return cache.put(url, response);
+                    }
+                } catch (err) {
+                    console.error(`[Service Worker] Failed to fetch and cache: ${url}`, err);
+                }
+            });
+
+            return Promise.all(cachePromises);
         })
     );
     self.skipWaiting();
@@ -56,7 +81,7 @@ self.addEventListener('fetch', event => {
         const cleanUrl = event.request.url.split('?')[0];
 
         event.respondWith(
-            fetch(event.request)
+            fetch(event.request, { cache: 'no-store' })
                 .then(response => {
                     // Check if we received a valid response
                     if (!response || response.status !== 200 || response.type !== 'basic' && response.type !== 'cors') {

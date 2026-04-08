@@ -43,9 +43,19 @@ def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> 
 
 def get_retry_session(retries: int = 5, backoff_factor: float = 0.5, status_forcelist: tuple = (500, 502, 503, 504)) -> requests.Session:
     """
-    Creates a requests session with a retry strategy.
+    Creates a requests session with a retry strategy and browser-like headers.
     """
     session = requests.Session()
+    
+    # Set default headers to identify as a browser and avoid 403 Forbidden errors
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
+    })
+
     retry = Retry(
         total=retries,
         read=retries,
