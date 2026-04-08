@@ -15,12 +15,27 @@ jobs:
       contents: read
       pages: write
       id-token: write
+      actions: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+      - name: Check for script changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scripts:
+              - 'scripts/**'
+      - name: Trigger schedule update if scripts changed
+        if: steps.filter.outputs.scripts == 'true'
+        run: |
+          echo "Scripts changed, triggering schedule update..."
+          gh workflow run update_schedules.yml --ref master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache-bust asset URLs
         run: |
           sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html sw.js app/js/*.js
