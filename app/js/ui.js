@@ -389,7 +389,7 @@ export function renderTrains(data) {
         document.title = "PATCO Schedule";
     } else {
         const timeText = next.minutes <= 1 ? "< 1 min" : `${next.minutes} mins`;
-        document.title = `PATCO Schedule | ${timeText}`;
+        document.title = `PATCO Schedule │ ${timeText}`;
     }
 
     let displayNextSchedule = next.schedule;
@@ -403,7 +403,7 @@ export function renderTrains(data) {
     <div class="card next-train-card">
         ${isLongWait ? `
             <p class="countdown-label">Next train at</p>
-            <div class="countdown" style="background: linear-gradient(135deg, ${countdownColor}, ${countdownColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${formatTime(next.time)}</div>
+            <div class="countdown" style="color: ${countdownColor};">${formatTime(next.time)}</div>
             <div class="countdown-unit">${next.is_tomorrow ? 'tomorrow' : ''}</div>
             ${next.arrivalTime ? `
             <div class="next-arrival">
@@ -415,7 +415,7 @@ export function renderTrains(data) {
             ` : ''}
         ` : `
             <p class="countdown-label">Next train in</p>
-            <div class="countdown" style="background: linear-gradient(135deg, ${countdownColor}, ${countdownColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${next.minutes <= 1 ? '< 1' : next.minutes}</div>
+            <div class="countdown" style="color: ${countdownColor};">${next.minutes <= 1 ? '< 1' : next.minutes}</div>
             <div class="countdown-unit">${next.minutes <= 1 ? 'minute' : 'minutes'}</div>
             <div class="next-time">
                 ${formatTime(next.time)}${next.is_tomorrow ? ' <span style="color: var(--text-muted); font-size: 0.9rem;">(tomorrow)</span>' : ''}
@@ -514,13 +514,6 @@ export function renderTrains(data) {
     const currentActiveBtn = document.querySelector('.direction-btn.active');
     if (currentActiveBtn) {
         currentActiveBtn.style.background = countdownColor;
-        let shadowColor = countdownColor;
-        if (countdownColor.startsWith('#')) {
-            shadowColor = countdownColor + '66';
-        } else {
-            shadowColor = countdownColor.replace('rgb(', 'rgba(').replace(')', ', 0.4)');
-        }
-        currentActiveBtn.style.boxShadow = `0 4px 15px ${shadowColor}`;
     }
 
     document.documentElement.style.setProperty('--severity-color', countdownColor);
