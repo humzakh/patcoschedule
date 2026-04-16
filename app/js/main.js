@@ -16,6 +16,7 @@ import {
 // --- INITIALIZATION ---
 
 // Initialize UI immediate state to prevent flash
+document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
 const activeBtn = document.querySelector(`.direction-btn[data-direction="${state.currentDirection}"]`);
 if (activeBtn) activeBtn.classList.add('active');
 
@@ -24,25 +25,31 @@ setupCustomSelect(document.getElementById('stationSelect'), (val) => {
     state.currentStation = val;
     localStorage.setItem('patco_station', state.currentStation);
     updateDestinationDropdown();
-    loadTrains();
+    loadTrains(false);
     const geoIcon = document.querySelector('#findMe .geo-icon');
     if (geoIcon) geoIcon.textContent = 'location_searching';
 });
 
 // Set up destination select
 setupCustomSelect(document.getElementById('destinationSelect'), (val) => {
+    const prev = state.currentDestination;
     state.currentDestination = val;
+
     if (state.currentDestination) {
         localStorage.setItem('patco_destination', state.currentDestination);
     } else {
         localStorage.removeItem('patco_destination');
     }
+
     const clearBtn = document.getElementById('clearDestination');
     clearBtn.style.opacity = state.currentDestination ? '1' : '0';
     clearBtn.style.pointerEvents = state.currentDestination ? '' : 'none';
+
     const noDestOpt = document.querySelector('#destinationSelect .custom-select-option[data-value=""]');
     if (noDestOpt) noDestOpt.style.display = state.currentDestination ? 'none' : '';
-    loadTrains(false);
+
+    // Re-render with new destination
+    loadTrains(false, true);
 });
 
 // Global Event Listeners
@@ -60,16 +67,20 @@ document.getElementById('findMe').addEventListener('click', () => {
 });
 
 document.getElementById('clearDestination').addEventListener('click', () => {
-    state.currentDestination = '';
-    localStorage.removeItem('patco_destination');
+    // Hide the clear button and reset the dropdown immediately
+    const clearBtn = document.getElementById('clearDestination');
+    clearBtn.style.opacity = '0';
+    clearBtn.style.pointerEvents = 'none';
+
     const destSelect = document.getElementById('destinationSelect');
     const noDestOpt = destSelect.querySelector('.custom-select-option[data-value=""]');
     if (noDestOpt) noDestOpt.style.display = '';
     setCustomSelectValue(destSelect, '');
-    const clearBtn = document.getElementById('clearDestination');
-    clearBtn.style.opacity = '0';
-    clearBtn.style.pointerEvents = 'none';
-    loadTrains(false);
+
+    // Clear state and re-render
+    state.currentDestination = '';
+    localStorage.removeItem('patco_destination');
+    loadTrains(false, true);
 });
 
 document.querySelectorAll('.direction-btn').forEach(btn => {
@@ -87,6 +98,9 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
             b.style.boxShadow = '';
         });
         btn.classList.add('active');
+
+        // Reset severity color to brand red during transition to prevent black flash
+        document.documentElement.style.setProperty('--severity-color', 'var(--patco-red)');
 
         state.currentDirection = newDirection;
         localStorage.setItem('patco_direction', state.currentDirection);
@@ -136,13 +150,13 @@ loadData({ updateTrains, updateDestinationDropdown });
 let countdownWorker;
 if (window.Worker) {
     countdownWorker = new Worker(`/app/js/worker.js?v=${new Date().getTime()}`);
-    countdownWorker.onmessage = function(e) {
+    countdownWorker.onmessage = function (e) {
         if (e.data === 'fetch') {
             loadData({ updateTrains, updateDestinationDropdown });
         } else if (e.data === 'tick') {
             state.refreshCountdown--;
             if (state.refreshCountdown <= 0) {
-                loadTrains(false);
+                loadTrains(false, true);
                 state.refreshCountdown = 60 - new Date().getSeconds();
                 if (state.refreshCountdown <= 0) state.refreshCountdown = 60;
             }
@@ -154,11 +168,11 @@ if (window.Worker) {
     setInterval(() => {
         loadData({ updateTrains, updateDestinationDropdown });
     }, DATA_REFRESH_INTERVAL);
-    
+
     setInterval(() => {
         state.refreshCountdown--;
         if (state.refreshCountdown <= 0) {
-            loadTrains(false);
+            loadTrains(false, true);
             state.refreshCountdown = 60 - new Date().getSeconds();
             if (state.refreshCountdown <= 0) state.refreshCountdown = 60;
         }
@@ -168,7 +182,7 @@ if (window.Worker) {
 
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        if (state.currentStation) loadTrains(false);
+        if (state.currentStation) loadTrains(false, true);
         if (Date.now() - state.lastFetchTime > DATA_REFRESH_INTERVAL) {
             loadData({ updateTrains, updateDestinationDropdown });
         }

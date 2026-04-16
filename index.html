@@ -43,126 +43,135 @@
             </div>
         </header>
 
-        <div class="card selector-card">
-            <div class="selector-group">
-                <div class="label-row">
-                    <label>Origin</label>
-                    <div class="geo-control">
-                        <button id="findMe" class="geo-btn" title="Find nearest station">
-                            <span class="geo-icon material-symbols-outlined">location_searching</span>
-                            <span class="spinner-small" style="display: none;"></span>
-                            <span class="geo-text">Near Me</span>
+        <main>
+            <div class="card selector-card">
+                <div class="selector-group">
+                    <div class="label-row">
+                        <label>Origin</label>
+                        <div class="geo-control">
+                            <button id="findMe" class="geo-btn" title="Find nearest station">
+                                <span class="geo-icon material-symbols-outlined">location_searching</span>
+                                <span class="spinner-small" style="display: none;"></span>
+                                <span class="geo-text">Near Me</span>
+                            </button>
+                            <div id="geoToast" class="geo-toast" style="display: none;">Unable to access location</div>
+                        </div>
+                    </div>
+                    <div class="custom-select" id="stationSelect" data-value="">
+                        <div class="custom-select-trigger placeholder">
+                            <span class="custom-select-value">Select a station...</span>
+                            <span class="material-symbols-outlined select-arrow">expand_more</span>
+                        </div>
+                        <div class="custom-select-options">
+                            <div class="custom-select-panel">
+                                <div class="custom-select-list">
+                                    <div class="custom-select-group" id="pa-stations">
+                                        <div class="custom-select-group-label">Philadelphia</div>
+                                        <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th
+                                            &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th
+                                            &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market
+                                        </div>
+                                        <div class="custom-select-option" data-value="Franklin Square">Franklin Square
+                                        </div>
+                                    </div>
+                                    <div class="custom-select-group" id="nj-stations">
+                                        <div class="custom-select-group-label">New Jersey</div>
+                                        <div class="custom-select-option" data-value="City Hall">City Hall</div>
+                                        <div class="custom-select-option" data-value="Broadway">Broadway</div>
+                                        <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
+                                        <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
+                                        <div class="custom-select-option" data-value="Westmont">Westmont</div>
+                                        <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
+                                        <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
+                                        <div class="custom-select-option" data-value="Ashland">Ashland</div>
+                                        <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="selector-group">
+                    <label>Direction</label>
+                    <div class="direction-toggle">
+                        <button class="direction-btn" data-direction="westbound">
+                            <span class="btn-arrow">←</span>
+                            <span class="btn-text" style="text-align: left;">
+                                <span class="btn-dir">Westbound</span>
+                                <span class="btn-dest">to Philadelphia</span>
+                            </span>
                         </button>
-                        <div id="geoToast" class="geo-toast" style="display: none;">Unable to access location</div>
+                        <button class="direction-btn" data-direction="eastbound">
+                            <span class="btn-text" style="text-align: right;">
+                                <span class="btn-dir">Eastbound</span>
+                                <span class="btn-dest">to Lindenwold</span>
+                            </span>
+                            <span class="btn-arrow">→</span>
+                        </button>
                     </div>
                 </div>
-                <div class="custom-select" id="stationSelect" data-value="">
-                    <div class="custom-select-trigger placeholder">
-                        <span class="custom-select-value">Select a station...</span>
-                        <span class="material-symbols-outlined select-arrow">expand_more</span>
+                <div class="selector-group" id="destinationGroup" style="display: none;">
+                    <div class="label-row">
+                        <label>Destination <span class="optional-label">(optional)</span></label>
+                        <button id="clearDestination" class="clear-btn" title="Clear destination"
+                            style="opacity: 0; pointer-events: none;"> CLEAR &nbsp;✕ </button>
                     </div>
-                    <div class="custom-select-options">
-                        <div class="custom-select-panel">
-                            <div class="custom-select-list">
-                                <div class="custom-select-group" id="pa-stations">
-                                    <div class="custom-select-group-label">Philadelphia</div>
-                                    <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market
+                    <div class="custom-select" id="destinationSelect" data-value="">
+                        <div class="custom-select-trigger">
+                            <span class="custom-select-value">No destination</span>
+                            <span class="material-symbols-outlined select-arrow">expand_more</span>
+                        </div>
+                        <div class="custom-select-options">
+                            <div class="custom-select-panel">
+                                <div class="custom-select-list">
+                                    <div class="custom-select-option" data-value="">No destination</div>
+                                    <div class="custom-select-group" id="dest-pa-stations">
+                                        <div class="custom-select-group-label">Philadelphia</div>
+                                        <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th
+                                            &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th
+                                            &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp;
+                                            Locust</div>
+                                        <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market
+                                        </div>
+                                        <div class="custom-select-option" data-value="Franklin Square">Franklin Square
+                                        </div>
                                     </div>
-                                    <div class="custom-select-option" data-value="Franklin Square">Franklin Square</div>
-                                </div>
-                                <div class="custom-select-group" id="nj-stations">
-                                    <div class="custom-select-group-label">New Jersey</div>
-                                    <div class="custom-select-option" data-value="City Hall">City Hall</div>
-                                    <div class="custom-select-option" data-value="Broadway">Broadway</div>
-                                    <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
-                                    <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
-                                    <div class="custom-select-option" data-value="Westmont">Westmont</div>
-                                    <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
-                                    <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
-                                    <div class="custom-select-option" data-value="Ashland">Ashland</div>
-                                    <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
+                                    <div class="custom-select-group" id="dest-nj-stations">
+                                        <div class="custom-select-group-label">New Jersey</div>
+                                        <div class="custom-select-option" data-value="City Hall">City Hall</div>
+                                        <div class="custom-select-option" data-value="Broadway">Broadway</div>
+                                        <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
+                                        <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
+                                        <div class="custom-select-option" data-value="Westmont">Westmont</div>
+                                        <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
+                                        <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
+                                        <div class="custom-select-option" data-value="Ashland">Ashland</div>
+                                        <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="selector-group">
-                <label>Direction</label>
-                <div class="direction-toggle">
-                    <button class="direction-btn" data-direction="westbound">
-                        <span class="btn-arrow">←</span>
-                        <span class="btn-text" style="text-align: left;">
-                            <span class="btn-dir">Westbound</span>
-                            <span class="btn-dest">to Philadelphia</span>
-                        </span>
-                    </button>
-                    <button class="direction-btn" data-direction="eastbound">
-                        <span class="btn-text" style="text-align: right;">
-                            <span class="btn-dir">Eastbound</span>
-                            <span class="btn-dest">to Lindenwold</span>
-                        </span>
-                        <span class="btn-arrow">→</span>
-                    </button>
-                </div>
-            </div>
-            <div class="selector-group" id="destinationGroup" style="display: none;">
-                <div class="label-row">
-                    <label>Destination <span class="optional-label">(optional)</span></label>
-                    <button id="clearDestination" class="clear-btn" title="Clear destination"
-                        style="opacity: 0; pointer-events: none;"> CLEAR &nbsp;✕ </button>
-                </div>
-                <div class="custom-select" id="destinationSelect" data-value="">
-                    <div class="custom-select-trigger">
-                        <span class="custom-select-value">No destination</span>
-                        <span class="material-symbols-outlined select-arrow">expand_more</span>
-                    </div>
-                    <div class="custom-select-options">
-                        <div class="custom-select-panel">
-                            <div class="custom-select-list">
-                                <div class="custom-select-option" data-value="">No destination</div>
-                                <div class="custom-select-group" id="dest-pa-stations">
-                                    <div class="custom-select-group-label">Philadelphia</div>
-                                    <div class="custom-select-option" data-value="15/16th &amp; Locust">15/16th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="12/13th &amp; Locust">12/13th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="9/10th &amp; Locust">9/10th &amp;
-                                        Locust</div>
-                                    <div class="custom-select-option" data-value="8th &amp; Market">8th &amp; Market
-                                    </div>
-                                    <div class="custom-select-option" data-value="Franklin Square">Franklin Square</div>
-                                </div>
-                                <div class="custom-select-group" id="dest-nj-stations">
-                                    <div class="custom-select-group-label">New Jersey</div>
-                                    <div class="custom-select-option" data-value="City Hall">City Hall</div>
-                                    <div class="custom-select-option" data-value="Broadway">Broadway</div>
-                                    <div class="custom-select-option" data-value="Ferry Avenue">Ferry Avenue</div>
-                                    <div class="custom-select-option" data-value="Collingswood">Collingswood</div>
-                                    <div class="custom-select-option" data-value="Westmont">Westmont</div>
-                                    <div class="custom-select-option" data-value="Haddonfield">Haddonfield</div>
-                                    <div class="custom-select-option" data-value="Woodcrest">Woodcrest</div>
-                                    <div class="custom-select-option" data-value="Ashland">Ashland</div>
-                                    <div class="custom-select-option" data-value="Lindenwold">Lindenwold</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div id="trainInfo">
-            <div class="card loading">
-                <p>Select a station to see train times</p>
+            <div id="trainInfo">
+                <div class="card loading">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
             </div>
-        </div>
+        </main>
 
         <footer>
             <p>
@@ -171,6 +180,50 @@
             </p>
         </footer>
 
+        <script>
+            (function () {
+                try {
+                    const dir = localStorage.getItem('patco_direction') || 'eastbound';
+                    document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
+                    const btn = document.querySelector('.direction-btn[data-direction="' + dir + '"]');
+                    if (btn) btn.classList.add('active');
+
+                    const station = localStorage.getItem('patco_station');
+                    if (station) {
+                        const stText = document.querySelector('#stationSelect .custom-select-value');
+                        if (stText) stText.textContent = station;
+                        const stTrigger = document.querySelector('#stationSelect .custom-select-trigger');
+                        if (stTrigger) stTrigger.classList.remove('placeholder');
+                        const destGroup = document.getElementById('destinationGroup');
+                        if (destGroup) destGroup.style.display = '';
+                    }
+
+                    const dest = localStorage.getItem('patco_destination');
+                    if (dest) {
+                        const destText = document.querySelector('#destinationSelect .custom-select-value');
+                        if (destText) destText.textContent = dest;
+                        const clearBtn = document.getElementById('clearDestination');
+                        if (clearBtn) {
+                            clearBtn.style.opacity = '1';
+                            clearBtn.style.pointerEvents = '';
+                        }
+                    }
+
+                    // Pre-inject loading area to prevent jump
+                    if (station) {
+                        const trainInfo = document.getElementById('trainInfo');
+                        if (trainInfo) {
+                            trainInfo.innerHTML = `
+                                <div class="card loading">
+                                    <div class="spinner"></div>
+                                    <p>Fetching schedule data...</p>
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (e) { }
+            })();
+        </script>
         <script type="module" src="app/js/main.js?v=__CACHE_BUST__"></script>
 </body>
 

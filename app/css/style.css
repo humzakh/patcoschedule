@@ -62,6 +62,9 @@ body {
 .container {
     max-width: 480px;
     width: 100%;
+    min-height: calc(100vh - 4rem);
+    display: flex;
+    flex-direction: column;
 }
 
 header {
@@ -134,6 +137,11 @@ body.has-custom-select-open .selector-card button,
 body.has-custom-select-open .custom-select:not(.open) .custom-select-trigger {
     pointer-events: none;
     opacity: 0.5;
+}
+
+main {
+    flex: 1;
+    position: relative;
 }
 
 .selector-group {
@@ -263,13 +271,13 @@ label {
     visibility: visible;
     pointer-events: auto;
     /* Delay interaction until animation finishes to prevent accidental touch highlights on mobile */
-    transition: opacity 0.1s ease-out, visibility 0s linear 0s, pointer-events 0s linear 0.1s;
+    transition: opacity 0.2s ease-out, visibility 0s linear 0s, pointer-events 0s linear 0.2s;
 }
 
 .custom-select.open .custom-select-panel {
     transform: scale(1);
     /* Smooth elastic pop on opening */
-    transition: transform 0.1s cubic-bezier(0.23, 1, 0.32, 1);
+    transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 
@@ -387,11 +395,18 @@ label {
     border: none;
     border-radius: 10px;
     cursor: pointer;
-    transition: opacity 0.1s ease-out, transform 0.1s, background 0.1s, color 0.1s, pointer-events 0s linear 0.1s;
+    transition: background 0.1s ease-out, color 0.1s ease-out, transform 0.1s, opacity 0.1s;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.direction-btn.active {
+    background: var(--severity-color, var(--patco-red));
+    border-color: transparent;
+    color: white;
+    font-weight: 600;
 }
 
 .direction-btn[data-direction="westbound"] .btn-text {
@@ -428,8 +443,6 @@ label {
     display: flex;
     align-items: center;
     transition: transform 0.1s ease-out, color 0.1s ease;
-
-    /* Force GPU texture rendering for smooth Windows subpixel animation */
     will-change: transform;
     backface-visibility: hidden;
     -webkit-font-smoothing: antialiased;
@@ -451,13 +464,6 @@ label {
 .direction-btn[data-direction="westbound"]:not(.active):hover {
     background: rgba(255, 255, 255, 0.03);
     color: var(--west-color, var(--text-primary));
-}
-
-.direction-btn.active {
-    background: var(--patco-red);
-    border-color: transparent;
-    color: white;
-    font-weight: 500;
 }
 
 .next-train-card {
@@ -728,6 +734,8 @@ a.schedule-badge:hover {
     list-style: none;
 }
 
+/* Handle dividers between visible and hidden list items */
+/* Handle dividers between visible and hidden list items */
 .upcoming-item {
     display: grid;
     grid-template-columns: 5.5rem 3.5rem 1fr auto;
@@ -737,26 +745,49 @@ a.schedule-badge:hover {
     gap: 0.5rem;
 }
 
-/* Only remove padding and border if it's the very last list in the card */
-.upcoming-list:last-of-type .upcoming-item:last-child {
+/* The last item in the first list should only have no border if there is no hidden list at all */
+.card>.upcoming-list:last-child .upcoming-item:last-child {
     border-bottom: none;
     padding-bottom: 0;
 }
 
+/* The last item in the hidden list should always have no border */
+#hiddenTrains .upcoming-item:last-child {
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+}
+
 .upcoming-item.thick-border {
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 3px solid var(--border-color);
 }
 
 .upcoming-item:first-child {
     padding-top: 0;
 }
 
-#hiddenTrains {
-    margin-top: 0;
-    padding-top: 0;
+.expand-container {
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: height 0.3s ease-out, opacity 0.3s ease-out;
 }
 
+.expand-container.expanded {
+    opacity: 1;
+}
+
+#hiddenTrains {
+    margin: 0;
+    padding: 0;
+}
+
+/* Consistent splicing for first hidden item */
 #hiddenTrains .upcoming-item:first-child {
+    padding-top: 0.75rem;
+}
+
+#hiddenTrains .upcoming-header:first-child {
+    margin-top: 0;
     padding-top: 0.75rem;
 }
 
@@ -799,22 +830,17 @@ a.schedule-badge:hover {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 0 0.5rem 0;
-    margin-top: 1rem;
+    padding: 2.1rem 0 0.5rem 0;
+    margin-top: 0;
     color: var(--text-secondary);
     font-size: 0.95rem;
     font-weight: 600;
     border-bottom: 1px solid var(--border-color);
 }
 
-.upcoming-header:first-child {
-    margin-top: 0;
+/* ONLY remove top padding if it's the absolute first item at the top of the entire card */
+.card>.upcoming-list:first-child>.upcoming-header:first-child {
     padding-top: 0;
-}
-
-#hiddenTrains .upcoming-header:first-child {
-    margin-top: 1rem;
-    padding-top: 1rem;
 }
 
 a.upcoming-schedule:hover {
@@ -880,7 +906,12 @@ a.upcoming-schedule.sunday:hover {
 .show-more-btn .material-symbols-outlined {
     font-size: 1.8rem;
     font-variation-settings: 'wght' 500;
-    transition: transform 0.2s ease;
+    transition: transform 0.3s ease-out;
+}
+
+.show-more-btn.expanded .material-symbols-outlined {
+    transform: rotate(180deg);
+    transition: transform 0s 0.3s;
 }
 
 .show-more-btn:hover {
@@ -1030,4 +1061,76 @@ footer {
         pointer-events: none;
         opacity: 0.5;
     }
+}
+
+@keyframes inlineExpand {
+    from {
+        max-width: 0;
+        opacity: 0;
+    }
+
+    to {
+        max-width: 150px;
+        opacity: 1;
+    }
+}
+
+@keyframes inlineCollapse {
+    from {
+        max-width: 150px;
+        opacity: 1;
+    }
+
+    to {
+        max-width: 0;
+        opacity: 0;
+    }
+}
+
+.next-arrival {
+    position: relative;
+    z-index: 2;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.arrival-time {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-top: 0.1rem;
+}
+
+@keyframes slideFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#trainInfo:not(.no-animate) .card {
+    animation: slideFadeIn 0.3s ease-out forwards;
+}
+
+@keyframes slideFadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+}
+
+.p-fade-out {
+    animation: slideFadeOut 0.2s ease-in-out forwards !important;
+    pointer-events: none;
 }

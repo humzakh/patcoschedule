@@ -40,29 +40,30 @@ export function formatMinutes(mins) {
     return `${hours} hr ${remainingMins} min`;
 }
 
+function interpolate(start, end, t) {
+    return Math.round(start + (end - start) * t);
+}
+
 export function getTimeColor(mins, maxMins = 15) {
-    if (mins > 60) return '#3b82f6';
+    if (mins > 60) return '#3b82f6'; // Blue for long waits
+    
     if (mins > maxMins) {
         const t = (mins - maxMins) / (60 - maxMins);
-        const r = Math.round(34 + (21 - 34) * t);
-        const g = Math.round(197 + (128 - 197) * t);
-        const b = Math.round(94 + (61 - 94) * t);
-        return `rgb(${r},${g},${b})`;
+        // Fade from Green (#22c55e: 34, 197, 94) to Forest Green (21, 128, 61)
+        return `rgb(${interpolate(34, 21, t)}, ${interpolate(197, 128, t)}, ${interpolate(94, 61, t)})`;
     }
-    if (mins <= 1) return '#ef4444';
+    
+    if (mins <= 1) return '#ef4444'; // Red for imminent trains
+    
     const ratio = mins / maxMins;
     if (ratio > 0.5) {
         const t = (ratio - 0.5) / 0.5;
-        const r = Math.round(234 + (34 - 234) * t);
-        const g = Math.round(179 + (197 - 179) * t);
-        const b = Math.round(8 + (94 - 8) * t);
-        return `rgb(${r},${g},${b})`;
+        // Fade from Yellow (#eab308: 234, 179, 8) to Green (#22c55e: 34, 197, 94)
+        return `rgb(${interpolate(234, 34, t)}, ${interpolate(179, 197, t)}, ${interpolate(8, 94, t)})`;
     } else {
         const t = ratio / 0.5;
-        const r = Math.round(239 + (234 - 239) * t);
-        const g = Math.round(68 + (179 - 68) * t);
-        const b = Math.round(68 + (8 - 68) * t);
-        return `rgb(${r},${g},${b})`;
+        // Fade from Red (#ef4444: 239, 68, 68) to Yellow (#eab308: 234, 179, 8)
+        return `rgb(${interpolate(239, 234, t)}, ${interpolate(68, 179, t)}, ${interpolate(68, 8, t)})`;
     }
 }
 
