@@ -1,3 +1,25 @@
+export const PA_STATIONS = [
+    "15/16th & Locust",
+    "12/13th & Locust",
+    "9/10th & Locust",
+    "8th & Market",
+    "Franklin Square"
+];
+
+export const NJ_STATIONS = [
+    "City Hall",
+    "Broadway",
+    "Ferry Avenue",
+    "Collingswood",
+    "Westmont",
+    "Haddonfield",
+    "Woodcrest",
+    "Ashland",
+    "Lindenwold"
+];
+
+export const WB_ORDER = [...NJ_STATIONS].reverse().concat([...PA_STATIONS].reverse());
+
 export const STATION_LOCATIONS = {
     "15/16th & Locust": { lat: 39.948332, lon: -75.166838 },
     "12/13th & Locust": { lat: 39.948332, lon: -75.162000 },

@@ -1,7 +1,34 @@
 import { state } from './state.js';
-import { CIRCUMFERENCE } from './constants.js';
+import { CIRCUMFERENCE, WB_ORDER, PA_STATIONS, NJ_STATIONS } from './constants.js';
 import { formatTime, formatMinutes, getTimeColor, getDirColor } from './utils.js';
 import { getNextTrainsForDirection } from './data.js';
+
+/**
+ * Helper to update the train info area with a smooth fade sequence
+ */
+async function setInfoHtml(html, skipAnimation = false) {
+    const infoArea = document.getElementById('trainInfo');
+    if (!infoArea) return;
+
+    // Normalize and compare to prevent redundant animations
+    const normalizedNew = html.replace(/\s+/g, ' ').trim();
+    const normalizedOld = infoArea.innerHTML.replace(/\s+/g, ' ').trim();
+    if (normalizedNew === normalizedOld) return;
+
+    if (skipAnimation || !infoArea.querySelector('.card')) {
+        infoArea.innerHTML = html;
+        return;
+    }
+
+    // Add fade-out to existing cards
+    const existingCards = infoArea.querySelectorAll('.card');
+    existingCards.forEach(card => card.classList.add('p-fade-out'));
+
+    // Wait for fade-out animation (0.15s in CSS)
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    infoArea.innerHTML = html;
+}
 
 export function setCustomSelectValue(selectEl, value, updateList = true, fromGeo = false) {
     selectEl.dataset.value = value;
@@ -10,7 +37,7 @@ export function setCustomSelectValue(selectEl, value, updateList = true, fromGeo
     if (value) {
         const opt = selectEl.querySelector(`.custom-select-option[data-value="${CSS.escape(value)}"]`);
         let displayText = opt ? opt.dataset.value : value;
-        
+
         if (fromGeo && selectEl.id === 'stationSelect') {
             valueSpan.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: text-bottom; margin-right: 6px; color: var(--text-secondary);">my_location</span>${displayText}`;
         } else {
@@ -145,14 +172,40 @@ export function setupCustomSelect(selectEl, onChange) {
 }
 
 export function toggleMoreTrains(btn) {
-    const hiddenList = document.getElementById('hiddenTrains');
-    if (hiddenList.style.display === 'none') {
-        hiddenList.style.display = 'block';
-        btn.innerHTML = '<span class="material-symbols-outlined">expand_less</span>';
+    const container = document.getElementById('hiddenTrainsContainer');
+    if (!container || !btn) return;
+
+    const isExpanding = !container.classList.contains('expanded');
+
+    // Remove any existing transition listener to prevent conflicts
+    if (container._transitionHandler) {
+        container.removeEventListener('transitionend', container._transitionHandler);
+    }
+
+    if (isExpanding) {
+        container.style.display = 'block';
+        const targetHeight = container.scrollHeight;
+        container.style.height = '0px';
+        container.offsetHeight; // Force reflow
+        container.style.height = targetHeight + 'px';
+        container.classList.add('expanded');
+        btn.classList.add('expanded');
         state.isListExpanded = true;
+
+        container._transitionHandler = (e) => {
+            if (e.propertyName === 'height') {
+                if (container.classList.contains('expanded')) {
+                    container.style.height = 'auto';
+                }
+            }
+        };
+        container.addEventListener('transitionend', container._transitionHandler, { once: true });
     } else {
-        hiddenList.style.display = 'none';
-        btn.innerHTML = '<span class="material-symbols-outlined">expand_more</span>';
+        container.style.height = container.scrollHeight + 'px';
+        container.offsetHeight; // Force reflow
+        container.style.height = '0px';
+        container.classList.remove('expanded');
+        btn.classList.remove('expanded');
         state.isListExpanded = false;
     }
 }
@@ -209,10 +262,7 @@ export function updateDestinationDropdown() {
     if (state.patcoData && state.patcoData.stations && state.patcoData.stations[state.currentDirection]) {
         stationOrder = state.patcoData.stations[state.currentDirection];
     } else {
-        const westbound = ["Lindenwold", "Ashland", "Woodcrest", "Haddonfield", "Westmont",
-            "Collingswood", "Ferry Avenue", "Broadway", "City Hall", "Franklin Square",
-            "8th & Market", "9/10th & Locust", "12/13th & Locust", "15/16th & Locust"];
-        stationOrder = state.currentDirection === 'westbound' ? westbound : [...westbound].reverse();
+        stationOrder = state.currentDirection === 'westbound' ? WB_ORDER : [...WB_ORDER].reverse();
     }
 
     const originIdx = stationOrder.indexOf(state.currentStation);
@@ -276,42 +326,51 @@ export function updateDestinationDropdown() {
     if (noDestOption) noDestOption.style.display = state.currentDestination ? 'none' : '';
 }
 
-export function updateTrains(showLoading = false) {
+export async function updateTrains(showLoading = false, skipAnimation = false) {
     const infoArea = document.getElementById('trainInfo');
+    if (skipAnimation) {
+        infoArea.classList.add('no-animate');
+    } else {
+        infoArea.classList.remove('no-animate');
+    }
     if (!state.patcoData) {
         if (state.currentStation) {
-            infoArea.innerHTML = `
+            await setInfoHtml(`
             <div class="card loading">
                 <div class="spinner"></div>
                 <p>Fetching schedule data...</p>
             </div>
-            `;
+            `, skipAnimation);
         } else {
-            infoArea.innerHTML = `
+            infoArea.classList.add('no-animate');
+            await setInfoHtml(`
             <div class="card loading">
                 <p>Select a station to see train times</p>
             </div>
-            `;
+            `, true);
         }
         return;
     }
 
     if (!state.currentStation) {
-        infoArea.innerHTML = `
+        infoArea.classList.add('no-animate');
+        await setInfoHtml(`
         <div class="card loading">
             <p>Select a station to see train times</p>
         </div>
-    `;
+    `, true);
         return;
     }
 
     if (showLoading) {
-        infoArea.innerHTML = `
+        const loadingText = !state.patcoData ? 'Fetching schedule data...' : 'Loading...';
+        await setInfoHtml(`
         <div class="card loading">
             <div class="spinner"></div>
-            <p>Loading...</p>
+            <p>${loadingText}</p>
         </div>
-    `;
+    `, skipAnimation);
+        return;
     }
 
     const eastbound = getNextTrainsForDirection(state.currentStation, 'eastbound');
@@ -336,40 +395,46 @@ export function updateTrains(showLoading = false) {
     const currentData = state.currentDirection === 'eastbound' ? eastbound : westbound;
     try {
         if (currentData) {
-            renderTrains(currentData);
+            await renderTrains(currentData, skipAnimation);
         } else {
             throw new Error('No service for this direction');
         }
     } catch (err) {
-        infoArea.innerHTML = `
+        await setInfoHtml(`
          <div class="card error">
              <p>Failed to load train times</p>
              <p style="font-size: 0.8rem; margin-top: 0.5rem;">${err.message}</p>
          </div>
-         `;
+         `, skipAnimation);
     }
+
 }
 
-export function loadTrains(showLoading = true) {
-    updateTrains(showLoading);
+export async function loadTrains(showLoading = true, skipAnimation = false) {
+    await updateTrains(showLoading, skipAnimation);
 }
 
-export function renderTrains(data) {
-    const infoArea = document.getElementById('trainInfo');
+export async function renderTrains(data, skipAnimation = false) {
     if (!data.trains || data.trains.length === 0) {
         document.title = "PATCO Schedule";
-        infoArea.innerHTML = `
+        await setInfoHtml(`
         <div class="card">
             <div class="loading">
                 <p>No upcoming trains found</p>
             </div>
         </div>
-    `;
+    `, skipAnimation);
         return;
     }
 
     const next = data.trains[0];
     const upcoming = data.trains.slice(1);
+
+    const currentTrainId = `${state.currentStation}-${state.currentDirection}-${next.time}`;
+    if (state.lastNextTrainId && state.lastNextTrainId !== currentTrainId) {
+        skipAnimation = false;
+    }
+    state.lastNextTrainId = currentTrainId;
 
     const getBadgeClass = (schedule) => {
         if (schedule.toLowerCase().includes('special')) return 'special';
@@ -384,7 +449,7 @@ export function renderTrains(data) {
     state.currentTrainColor = countdownColor;
 
     const isLongWait = next.minutes >= 60;
-    
+
     if (isLongWait || state.isMobile) {
         document.title = "PATCO Schedule";
     } else {
@@ -443,7 +508,7 @@ export function renderTrains(data) {
 `;
 
     if (upcoming.length > 0) {
-        const initialCount = 4;
+        const initialCount = 5;
         const hasMore = upcoming.length > initialCount;
         const visibleTrains = upcoming.slice(0, initialCount);
         const hiddenTrains = upcoming.slice(initialCount);
@@ -500,33 +565,30 @@ export function renderTrains(data) {
                 ${renderInfos(visibleTrains)}
             </ul>
             ${hasMore ? `
-                <ul class="upcoming-list" id="hiddenTrains" style="display: none;">
-                    ${renderInfos(hiddenTrains)}
-                </ul>
-                <button class="show-more-btn" id="toggleMoreBtn"><span class="material-symbols-outlined">expand_more</span></button>
+                <div class="expand-container ${state.isListExpanded ? 'expanded' : ''}" id="hiddenTrainsContainer" style="${state.isListExpanded ? 'height: auto; display: block;' : 'display: none;'}">
+                    <ul class="upcoming-list" id="hiddenTrains">
+                        ${renderInfos(hiddenTrains)}
+                    </ul>
+                </div>
+                <button class="show-more-btn ${state.isListExpanded ? 'expanded' : ''}" id="toggleMoreBtn">
+                    <span class="material-symbols-outlined">expand_more</span>
+                </button>
             ` : ''}
         </div>
     `;
     }
 
-    infoArea.innerHTML = html;
-
     const currentActiveBtn = document.querySelector('.direction-btn.active');
     if (currentActiveBtn) {
+        currentActiveBtn.style.transition = 'background 0.4s ease-out, color 0.4s ease-out';
         currentActiveBtn.style.background = countdownColor;
+        setTimeout(() => currentActiveBtn.style.transition = '', 400);
     }
 
     document.documentElement.style.setProperty('--severity-color', countdownColor);
 
-    if (state.isListExpanded) {
-        const hiddenList = document.getElementById('hiddenTrains');
-        const btn = document.getElementById('toggleMoreBtn');
-        if (hiddenList && btn) {
-            hiddenList.style.display = 'block';
-            btn.innerHTML = '<span class="material-symbols-outlined">expand_less</span>';
-        }
-    }
-    
+    await setInfoHtml(html, skipAnimation);
+
     // Add event listener for the toggle button after rendering
     const toggleBtn = document.getElementById('toggleMoreBtn');
     if (toggleBtn) {

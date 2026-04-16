@@ -61,7 +61,7 @@ export function handleGeolocation(callbacks) {
             setCustomSelectValue(document.getElementById('stationSelect'), state.currentStation, true, true);
 
             updateDestinationDropdown();
-            updateTrains(true);
+            updateTrains(false);
 
             const icon = btn.querySelector('.geo-icon');
             if (icon) icon.textContent = 'my_location';

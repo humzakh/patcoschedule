@@ -36,7 +36,7 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
         }
 
         if (!matrix) {
-            const typ = (function(d) {
+            const typ = (function (d) {
                 const day = d.getDay();
                 if (day === 6) return 'saturday';
                 if (day === 0) return 'sunday';
@@ -135,13 +135,13 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
         const tomorrow = new Date(nyNow);
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
-        
+
         // Filter out trains we already picked up (e.g. carryovers in today's matrix)
         const existingTimes = new Set(upcoming.map(t => `${t.time}-${t.is_tomorrow}`));
         const startLen = upcoming.length;
-        
+
         scanScheduleDay(tomorrow, true);
-        
+
         // Deduplicate the newly added trains
         if (upcoming.length > startLen) {
             const newTrains = upcoming.slice(startLen).filter(t => !existingTimes.has(`${t.time}-${t.is_tomorrow}`));
@@ -163,9 +163,15 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
 export async function loadData(callbacks) {
     const { updateTrains, updateDestinationDropdown } = callbacks;
     try {
-        updateTrains();
-        const res = await fetch(`${DATA_URL}?t=${new Date().getTime()}`, { cache: 'no-store' });
-        state.patcoData = await res.json();
+        updateTrains(true);
+
+        const fetchPromise = fetch(`${DATA_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
+            .then(res => res.json());
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
+
+        const [data] = await Promise.all([fetchPromise, delayPromise]);
+
+        state.patcoData = data;
         state.lastFetchTime = Date.now();
         updateDestinationDropdown();
         updateTrains();
