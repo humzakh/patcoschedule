@@ -16,6 +16,7 @@ import pandas as pd
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from collections import defaultdict
 
 STATIONS_WESTBOUND = [
     "Lindenwold", "Ashland", "Woodcrest", "Haddonfield", "Westmont",
@@ -260,7 +261,6 @@ def extract_column_centers_from_headers(page, x_start: float, x_end: float,
     
     # Cluster header x-positions to find column centers
     # Headers are spaced roughly 37 pixels apart
-    from collections import defaultdict
     columns = defaultdict(list)
     for x in header_x:
         col_x = round(x / 37) * 37  # Group by ~37px spacing
@@ -268,6 +268,16 @@ def extract_column_centers_from_headers(page, x_start: float, x_end: float,
     
     # Return sorted column centers
     return sorted(columns.keys())
+
+
+def get_column_centers_helper(header_centers, rows, expected_cols):
+    if header_centers and len(header_centers) == expected_cols:
+        return header_centers
+    # Fallback: use fullest row with expected column count
+    if not rows:
+        return []
+    fullest_row = max(rows, key=len)
+    return detect_column_centers(fullest_row, expected_cols=expected_cols)
 
 
 def extract_schedule_from_region(page, y_start: float, y_end: float, 
@@ -293,17 +303,8 @@ def extract_schedule_from_region(page, y_start: float, y_end: float,
     # We expect 14 columns for PATCO (all 14 stations including terminals)
     EXPECTED_COLS = 14
     
-    def get_column_centers(header_centers, rows):
-        if header_centers and len(header_centers) == EXPECTED_COLS:
-            return header_centers
-        # Fallback: use fullest row with expected column count
-        if not rows:
-            return []
-        fullest_row = max(rows, key=len)
-        return detect_column_centers(fullest_row, expected_cols=EXPECTED_COLS)
-    
-    wb_columns = get_column_centers(wb_header_centers, wb_rows)
-    eb_columns = get_column_centers(eb_header_centers, eb_rows)
+    wb_columns = get_column_centers_helper(wb_header_centers, wb_rows, EXPECTED_COLS)
+    eb_columns = get_column_centers_helper(eb_header_centers, eb_rows, EXPECTED_COLS)
     
     westbound_data = []
     for row in wb_rows:

@@ -3,6 +3,49 @@ import { CIRCUMFERENCE, WB_ORDER, PA_STATIONS, NJ_STATIONS } from './constants.j
 import { formatTime, formatMinutes, getTimeColor, getDirColor } from './utils.js';
 import { getNextTrainsForDirection } from './data.js';
 
+function getBadgeClass(schedule) {
+    if (schedule.toLowerCase().includes('special')) return 'special';
+    if (schedule === 'weekday') return 'weekday';
+    if (schedule === 'sunday') return 'sunday';
+    if (schedule === 'saturday') return 'weekend';
+    return '';
+}
+
+function renderInfos(list, stateObj, nextTrain, tomorrowHeaderState, fullList) {
+    return list.map(train => {
+        let html = '';
+        if (train.is_tomorrow && !tomorrowHeaderState.rendered && !nextTrain.is_tomorrow) {
+            tomorrowHeaderState.rendered = true;
+            let primaryTomorrowTrain = fullList.find(t => t.is_tomorrow && !t.is_carryover) || train;
+            let displayScheduleText = primaryTomorrowTrain.schedule;
+            if (displayScheduleText.startsWith('Special (')) {
+                displayScheduleText = 'Special';
+            }
+            let displaySchedule = displayScheduleText + (displayScheduleText.toLowerCase().includes('schedule') ? '' : ' schedule');
+
+            html += `
+            <li class="upcoming-header">
+                <span>Tomorrow</span>
+                ${primaryTomorrowTrain.schedule_url ?
+                    `<a href="${primaryTomorrowTrain.schedule_url}" target="_blank" class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule} ↗</a>` :
+                    `<span class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule}</span>`
+                }
+            </li>
+        `;
+        }
+
+        html += `
+            <li class="upcoming-item ${train.isLastToday ? 'thick-border' : ''}">
+                <span class="upcoming-time">${formatTime(train.time)}${train.arrivalTime ? ' <span class="arrival-time"><span class="arrival-arrow">→</span> ' + (train.arrivalTime === 'closed' ? '<span class="arrival-closed">Closed</span>' : '<span class="arrival-value">' + formatTime(train.arrivalTime) + '</span>') + '</span>' : ''}</span>
+                <span class="upcoming-tomorrow">${train.is_tomorrow && !tomorrowHeaderState.rendered && !nextTrain.is_tomorrow ? ' (tomorrow)' : ''}</span>
+                <div class="upcoming-spacer"></div>
+                <span class="upcoming-minutes">${formatMinutes(train.minutes)}</span>
+            </li>
+    `;
+        return html;
+    }).join('');
+}
+
 /**
  * Helper to update the train info area with a smooth fade sequence
  */
@@ -436,13 +479,6 @@ export async function renderTrains(data, skipAnimation = false) {
     }
     state.lastNextTrainId = currentTrainId;
 
-    const getBadgeClass = (schedule) => {
-        if (schedule.toLowerCase().includes('special')) return 'special';
-        if (schedule === 'weekday') return 'weekday';
-        if (schedule === 'sunday') return 'sunday';
-        if (schedule === 'saturday') return 'weekend';
-        return '';
-    };
     const badgeClass = getBadgeClass(next.schedule);
 
     const countdownColor = getTimeColor(next.minutes);
@@ -473,7 +509,7 @@ export async function renderTrains(data, skipAnimation = false) {
             ${next.arrivalTime ? `
             <div class="next-arrival">
                 ${next.arrivalTime === 'closed'
-                    ? `<span class="arrival-dest">Destination: ${state.currentDestination} (closed)</span>`
+                    ? `<span class="arrival-dest">${state.currentDestination} closed until ${next.closedUntil ? formatTime(next.closedUntil) : 'further notice'}</span>`
                     : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${state.currentDestination}</span>`
                 }
             </div>
@@ -488,7 +524,7 @@ export async function renderTrains(data, skipAnimation = false) {
             ${next.arrivalTime ? `
             <div class="next-arrival">
                 ${next.arrivalTime === 'closed'
-                ? `<span class="arrival-dest">Destination: ${state.currentDestination} (closed)</span>`
+                ? `<span class="arrival-dest">${state.currentDestination} closed until ${next.closedUntil ? formatTime(next.closedUntil) : 'further notice'}</span>`
                 : `arrives ${formatTime(next.arrivalTime)} <span class="arrival-dest">at ${state.currentDestination}</span>`
             }
             </div>
@@ -522,52 +558,17 @@ export async function renderTrains(data, skipAnimation = false) {
             }
         }
 
-        let tomorrowHeaderRendered = false;
-
-        const renderInfos = (list) => {
-            return list.map(train => {
-                let html = '';
-                if (train.is_tomorrow && !tomorrowHeaderRendered && !next.is_tomorrow) {
-                    tomorrowHeaderRendered = true;
-                    let primaryTomorrowTrain = upcoming.find(t => t.is_tomorrow && !t.is_carryover) || train;
-                    let displayScheduleText = primaryTomorrowTrain.schedule;
-                    if (displayScheduleText.startsWith('Special (')) {
-                        displayScheduleText = 'Special';
-                    }
-                    let displaySchedule = displayScheduleText + (displayScheduleText.toLowerCase().includes('schedule') ? '' : ' schedule');
-
-                    html += `
-                    <li class="upcoming-header">
-                        <span>Tomorrow</span>
-                        ${primaryTomorrowTrain.schedule_url ?
-                            `<a href="${primaryTomorrowTrain.schedule_url}" target="_blank" class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule} ↗</a>` :
-                            `<span class="upcoming-schedule ${getBadgeClass(primaryTomorrowTrain.schedule)}">${displaySchedule}</span>`
-                        }
-                    </li>
-                `;
-                }
-
-                html += `
-                    <li class="upcoming-item ${train.isLastToday ? 'thick-border' : ''}">
-                        <span class="upcoming-time">${formatTime(train.time)}${train.arrivalTime ? ' <span class="arrival-time"><span class="arrival-arrow">→</span> ' + (train.arrivalTime === 'closed' ? '<span class="arrival-closed">Closed</span>' : '<span class="arrival-value">' + formatTime(train.arrivalTime) + '</span>') + '</span>' : ''}</span>
-                        <span class="upcoming-tomorrow">${train.is_tomorrow && !tomorrowHeaderRendered && !next.is_tomorrow ? ' (tomorrow)' : ''}</span>
-                        <div class="upcoming-spacer"></div>
-                        <span class="upcoming-minutes">${formatMinutes(train.minutes)}</span>
-                    </li>
-            `;
-                return html;
-            }).join('');
-        };
+        let tomorrowHeaderState = { rendered: false };
 
         html += `
         <div class="card">
             <ul class="upcoming-list">
-                ${renderInfos(visibleTrains)}
+                ${renderInfos(visibleTrains, state, next, tomorrowHeaderState, upcoming)}
             </ul>
             ${hasMore ? `
                 <div class="expand-container ${state.isListExpanded ? 'expanded' : ''}" id="hiddenTrainsContainer" style="${state.isListExpanded ? 'height: auto; display: block;' : 'display: none;'}">
                     <ul class="upcoming-list" id="hiddenTrains">
-                        ${renderInfos(hiddenTrains)}
+                        ${renderInfos(hiddenTrains, state, next, tomorrowHeaderState, upcoming)}
                     </ul>
                 </div>
                 <button class="show-more-btn ${state.isListExpanded ? 'expanded' : ''}" id="toggleMoreBtn">

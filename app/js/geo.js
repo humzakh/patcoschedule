@@ -26,9 +26,26 @@ export function getNearestStation(lat, lon) {
     return nearest;
 }
 
+function showGeoToast() {
+    const toast = document.getElementById('geoToast');
+    if (!toast) return;
+
+    toast.style.display = 'block';
+    setTimeout(() => {
+        toast.style.opacity = '1';
+    }, 10);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 300);
+    }, 3000);
+}
+
 export function handleGeolocation(callbacks) {
     const { updateTrains, updateDestinationDropdown, setCustomSelectValue } = callbacks;
-    
+
     const btn = document.getElementById('findMe');
     if (!navigator.geolocation) {
         const icon = btn.querySelector('.geo-icon');
@@ -83,23 +100,6 @@ export function handleGeolocation(callbacks) {
         btn.classList.remove('geo-loading');
     };
 
-    function showGeoToast() {
-        const toast = document.getElementById('geoToast');
-        if (!toast) return;
-
-        toast.style.display = 'block';
-        setTimeout(() => {
-            toast.style.opacity = '1';
-        }, 10);
-
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => {
-                toast.style.display = 'none';
-            }, 300);
-        }, 3000);
-    }
-
     const onError = (error) => {
         clearTimeout(loadingTimeout);
         console.warn("Geolocation error (trying fallback):", error);
@@ -124,3 +124,4 @@ export function handleGeolocation(callbacks) {
 
     navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
 }
+
