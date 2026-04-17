@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-04-17T16:20:14.344586",
+  "last_updated": "2026-04-17T16:35:10.089171",
   "schedules": {
     "standard": {
       "weekday": {
@@ -8944,7 +8944,7 @@
           ]
         }
       },
-      "TW_2026-04-19_sunday": {
+      "TW_2026-04-19": {
         "url": "https://www.ridepatco.org/schedules/TW_2026-04-19.pdf",
         "westbound": {
           "stations": [
@@ -10363,7 +10363,7 @@
           ]
         }
       },
-      "TW_2026-04-18_saturday": {
+      "TW_2026-04-18": {
         "url": "https://www.ridepatco.org/schedules/TW_2026-04-18.pdf",
         "westbound": {
           "stations": [
