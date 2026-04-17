@@ -5,6 +5,8 @@ This script extracts timetables and converts them into structured JSON files for
 """
 
 import json
+import pandas as pd
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -37,28 +39,27 @@ def time_to_minutes(time_str):
 def whatthefuck(rows):
     """
     Named as such by request of Austin.
-
+ 
     Detect and correct AM/PM typos in schedule rows.
     If a trip is > 10 hours away from neighbors but flipping AM/PM makes it normal, flip it.
     """
     if len(rows) < 2:
         return rows
-
+ 
+    def get_first_time(row):
+        if not row: return None
+        for val in row:
+            if val: return val
+        return None
+ 
     new_rows = [rows[0]] # header
     trips = [r[:] for r in rows[1:]] # Copy trips
-
+ 
     for i in range(len(trips)):
         curr_row = trips[i]
         prev_row = trips[i-1] if i > 0 else None
         next_row = trips[i+1] if i < len(trips) - 1 else None
-
-        # Get base times at first available station
-        def get_first_time(row):
-            if not row: return None
-            for val in row:
-                if val: return val
-            return None
-
+ 
         curr_time_str = get_first_time(curr_row)
         if not curr_time_str:
             new_rows.append(curr_row)
@@ -197,10 +198,9 @@ def main():
     print("\n--- Generating JSON ---")
 
     # Read all CSVs into a structured dictionary
-    import pandas as pd
 
     schedules = {
-        'standard': {},
+        'standard': {'weekday': None, 'saturday': None, 'sunday': None},
         'special': {}
     }
 
@@ -210,67 +210,107 @@ def main():
     else:
          standard_prefix = "PATCO_Timetable"
 
-    for csv_file in csv_dir.glob("*.csv"):
-        df = pd.read_csv(csv_file).fillna("")
-        # Convert dataframe to list of dicts or list of lists
-        # For compactness, orient="list" or orient="records"
-        # We will keep it simple as a 2D array: header first, then rows
-        raw_data = [list(df.columns)] + df.values.tolist()
+    csv_files = list(csv_dir.glob("*.csv"))
+    print(f"\nFound {len(csv_files)} total CSV files.")
 
-        # Apply whatthefuck to fix typos
-        data = whatthefuck(raw_data)
-
+    # Pre-analyze special schedule sections to handle redundant suffixes
+    # Map of { pdf_stem: {section_names} }
+    special_meta = {}
+    day_suffixes = ["saturday", "sunday", "weekday"]
+    
+    for csv_file in csv_files:
         name = csv_file.stem
-        direction = 'eastbound' if 'eastbound' in name else 'westbound'
+        if name == "patco_data" or (standard_prefix and name.startswith(standard_prefix)):
+            continue
+        
+        parts = name.split("_")
+        for d in ["eastbound", "westbound", "schedule"]:
+            if d in parts: parts.remove(d)
+            
+        if parts and parts[-1].lower() in day_suffixes:
+            section = parts[-1].lower()
+            stem = "_".join(parts[:-1])
+            if stem not in special_meta: special_meta[stem] = set()
+            special_meta[stem].add(section)
 
-        # Categorize
-        if name.startswith(standard_prefix):
+    for csv_file in csv_files:
+        name = csv_file.stem
+        if name == "patco_data":
+            continue
+
+        # Load CSV data
+        df = pd.read_csv(csv_file).fillna("")
+        data_list = df.values.tolist() if not df.empty else []
+
+        # Apply whatthefuck to fix typos (it expects headers + rows)
+        processed_data = whatthefuck([list(df.columns)] + data_list)
+        
+        # Store as a structured object
+        final_data = {
+            'stations': processed_data[0],
+            'times': processed_data[1:]
+        }
+
+        # Determine if this is a standard schedule or special schedule
+        if standard_prefix and name.startswith(standard_prefix):
              # Standard schedule (e.g. PATCO_Timetable_2025-12-01_weekday_eastbound)
-             # Extract the schedule type (weekday, saturday, sunday)
+             direction = 'eastbound' if 'eastbound' in name else 'westbound'
              parts = name.replace(standard_prefix + "_", "").split("_")
              schedule_type = parts[0]
 
-             if direction not in schedules['standard']:
-                  schedules['standard'][direction] = {}
-             schedules['standard'][direction][schedule_type] = data
+             if schedules['standard'].get(schedule_type) is None:
+                  schedules['standard'][schedule_type] = {'url': '', 'westbound': None, 'eastbound': None}
+             schedules['standard'][schedule_type][direction] = final_data
 
         else:
              # Special schedule
-             # E.g., TW_2026-02-04_schedule_eastbound or 2026-02-16_PresidentsDay_schedule_westbound
-             # We want to key this by the date/prefix so the frontend can look it up
-
-             # The PDF parser outputs special schedules with the PDF stem
-             pdf_stem_parts = name.split("_")
-             if "eastbound" in pdf_stem_parts:
-                 pdf_stem_parts.remove("eastbound")
-             if "westbound" in pdf_stem_parts:
-                 pdf_stem_parts.remove("westbound")
-             if "schedule" in pdf_stem_parts:
-                 pdf_stem_parts.remove("schedule")
-
-             special_key = "_".join(pdf_stem_parts)
+             direction = 'eastbound' if 'eastbound' in name else 'westbound'
+             parts = name.split("_")
+             for d in ["eastbound", "westbound", "schedule"]:
+                 if d in parts: parts.remove(d)
+             
+             section = parts[-1].lower() if parts and parts[-1].lower() in day_suffixes else None
+             stem = "_".join(parts[:-1]) if section else "_".join(parts)
+             
+             # Strip suffix if it's the only section in that PDF group
+             if section and stem in special_meta and len(special_meta[stem]) <= 1:
+                 special_key = stem
+             else:
+                 special_key = "_".join(parts)
 
              if special_key not in schedules['special']:
-                  schedules['special'][special_key] = {}
-
                   # Look up the URL for this special schedule
                   special_url = "https://www.ridepatco.org/schedules/"
                   for pdf in (pdfs or []):
                       if isinstance(pdf, dict) and pdf.get('type') == 'special':
-                          if special_key.startswith(pdf.get('filename', '').replace('.pdf', '')):
+                          if pdf.get('filename', '').replace('.pdf', '').startswith(stem):
                               special_url = pdf.get('url')
                               break
-                  schedules['special'][special_key]['url'] = special_url
+                  
+                  schedules['special'][special_key] = {'url': special_url, 'westbound': None, 'eastbound': None}
 
-             schedules['special'][special_key][direction] = data
+             schedules['special'][special_key][direction] = final_data
+
+    # Add URL to each standard schedule type
+    if standard_url:
+        page_map = {'weekday': '#page=1', 'saturday': '#page=2', 'sunday': '#page=2'}
+        for typ in schedules['standard']:
+            if schedules['standard'][typ]:
+                schedules['standard'][typ]['url'] = standard_url + page_map.get(typ, '')
+
+    # Filter out any standard types that weren't found
+    schedules['standard'] = {k: v for k, v in schedules['standard'].items() if v is not None}
+
+    # Sort special schedules by key (date), descending
+    # Use a key that sorts by the date string found in the filename
+    def get_sort_key(k):
+        match = re.search(r'(\d{4}-\d{2}-\d{2})', k)
+        return match.group(1) if match else k
+
+    schedules['special'] = dict(sorted(schedules['special'].items(), key=lambda x: get_sort_key(x[0]), reverse=True))
 
     output_data = {
         'last_updated': datetime.now().isoformat(),
-        'standard_url': standard_url,
-        'stations': {
-            'westbound': STATIONS_WESTBOUND,
-            'eastbound': STATIONS_EASTBOUND
-        },
         'schedules': schedules
     }
 

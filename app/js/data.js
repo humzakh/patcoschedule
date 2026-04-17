@@ -2,6 +2,13 @@ import { state } from './state.js';
 import { getNYDate, parseTime } from './utils.js';
 import { DATA_URL } from './constants.js';
 
+function getScheduleType(date) {
+    const day = date.getDay();
+    if (day === 6) return 'saturday';
+    if (day === 0) return 'sunday';
+    return 'weekday';
+}
+
 export function getNextTrainsForDirection(station, direction, count = 20) {
     if (!state.patcoData || !station) return null;
 
@@ -36,42 +43,35 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
         }
 
         if (!matrix) {
-            const typ = (function (d) {
-                const day = d.getDay();
-                if (day === 6) return 'saturday';
-                if (day === 0) return 'sunday';
-                return 'weekday';
-            })(scanDate);
+            const typ = getScheduleType(scanDate);
 
-            if (state.patcoData.schedules.standard[direction][typ]) {
-                matrix = state.patcoData.schedules.standard[direction][typ];
+            if (state.patcoData.schedules.standard[typ] && state.patcoData.schedules.standard[typ][direction]) {
+                matrix = state.patcoData.schedules.standard[typ][direction];
                 scheduleName = typ;
-                scheduleUrl = state.patcoData.standard_url;
-                if (typ === 'weekday') scheduleUrl += '#page=1';
-                else scheduleUrl += '#page=2';
+                scheduleUrl = state.patcoData.schedules.standard[typ].url || "";
             }
         }
 
         if (!matrix) return;
-
-        const headers = matrix[0];
+ 
+        const headers = matrix.stations;
         const stIdx = headers.indexOf(station);
         if (stIdx === -1) return;
-
+ 
         const cmpTime = new Date(scanDate);
         if (isTomorrow) {
             cmpTime.setHours(0, 0, 0, 0);
         } else {
             cmpTime.setHours(nyNow.getHours(), nyNow.getMinutes(), 0, 0);
         }
-
+ 
         let prevMins = -1;
         let dayOffset = 0;
-
-        for (let i = 1; i < matrix.length; i++) {
-            const timeStr = matrix[i][stIdx];
+ 
+        for (const row of matrix.times) {
+            const timeStr = row[stIdx];
             if (!timeStr) continue;
-
+ 
             const suffix = timeStr.slice(-1);
             if (suffix === 'A' || suffix === 'P') {
                 let [hStr, mStr] = timeStr.slice(0, -1).split(':');
@@ -79,26 +79,26 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
                 let m = parseInt(mStr, 10);
                 if (suffix === 'P' && h !== 12) h += 12;
                 if (suffix === 'A' && h === 12) h = 0;
-
+ 
                 const thisMins = (h * 60) + m;
                 if (prevMins !== -1 && thisMins < prevMins - 120) {
                     dayOffset++;
                 }
                 prevMins = thisMins;
             }
-
+ 
             const tData = parseTime(timeStr, scanDate, dayOffset);
-
+ 
             if (tData && tData >= cmpTime) {
                 const msDiff = tData.getTime() - nyNow.getTime();
                 const mins = Math.ceil(msDiff / 60000);
-
+ 
                 let arrivalTime = null;
                 let arrivalMinutes = null;
                 if (state.currentDestination) {
                     const destIdx = headers.indexOf(state.currentDestination);
                     if (destIdx !== -1) {
-                        const destTimeStr = matrix[i][destIdx];
+                        const destTimeStr = row[destIdx];
                         if (destTimeStr) {
                             arrivalTime = destTimeStr;
                             const arrData = parseTime(destTimeStr, scanDate, dayOffset);
@@ -110,7 +110,7 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
                         }
                     }
                 }
-
+ 
                 upcoming.push({
                     time: timeStr,
                     minutes: mins,
@@ -121,7 +121,7 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
                     arrivalTime: arrivalTime,
                     arrivalMinutes: arrivalMinutes
                 });
-
+ 
                 if (upcoming.length >= count) return;
             }
         }
@@ -147,6 +147,20 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
             const newTrains = upcoming.slice(startLen).filter(t => !existingTimes.has(`${t.time}-${t.is_tomorrow}`));
             upcoming.length = startLen;
             upcoming.push(...newTrains);
+        }
+    }
+
+    // Post-process to calculate "closed until" for specific destination
+    if (state.currentDestination && upcoming.length > 0) {
+        for (let i = 0; i < upcoming.length; i++) {
+            if (upcoming[i].arrivalTime === 'closed') {
+                for (let j = i + 1; j < upcoming.length; j++) {
+                    if (upcoming[j].arrivalTime && upcoming[j].arrivalTime !== 'closed') {
+                        upcoming[i].closedUntil = upcoming[j].arrivalTime;
+                        break;
+                    }
+                }
+            }
         }
     }
 

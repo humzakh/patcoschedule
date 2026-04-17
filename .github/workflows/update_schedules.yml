@@ -13,52 +13,101 @@ jobs:
   update-data:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed to commit changes back
+      contents: write
+    outputs:
+      fail_reason: ${{ steps.fail-reason.outputs.reason }}
 
     steps:
       - name: Checkout repository
+        id: checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Checkout data branch
+        id: checkout-data
         uses: actions/checkout@v6
         with:
           ref: 'data'
           path: 'data-branch'
           
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: 'pip'
 
       - name: Install dependencies
+        id: install-deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run script to fetch and parse schedules
+        id: generate
         run: python scripts/generate_data.py
-        
-      - name: Move json to data branch and push
+
+      - name: Compare new & old data
+        id: compare
         run: |
-          # The script generates data/patco_data.json relative to the repository root.
-          # We move it to the root of the data branch checkout.
+          NEW_JSON="data/patco_data.json"
+          OLD_JSON="data-branch/patco_data.json"
+          
+          if [ ! -f "$NEW_JSON" ]; then
+            echo "::error::New JSON not found! generate_data.py failed to produce output."
+            exit 1
+          fi
+          
+          if [ ! -f "$OLD_JSON" ]; then
+            echo "No existing data — first run."
+            echo "changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          OLD_DATA=$(python3 -c "import json,sys; d=json.load(open('$OLD_JSON')); d.pop('last_updated',None); json.dump(d,sys.stdout,sort_keys=True)")
+          NEW_DATA=$(python3 -c "import json,sys; d=json.load(open('$NEW_JSON')); d.pop('last_updated',None); json.dump(d,sys.stdout,sort_keys=True)")
+          
+          if [ "$OLD_DATA" = "$NEW_DATA" ]; then
+            echo "Schedule data unchanged."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Schedule data has changed!"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push new data
+        id: push
+        if: steps.compare.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
           cp data/patco_data.json data-branch/
-          cp data/standard_pdf.json data-branch/ 2>/dev/null || true
+          cp data/standard_pdf.json data-branch/ || true
           
           cd data-branch
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add patco_data.json
-          git add standard_pdf.json 2>/dev/null || true
-          
-          if [[ -n $(git status --porcelain) ]]; then
-            git commit -m "Auto-update schedule data"
-            git push origin data
+          git add standard_pdf.json || true
+          git commit -m "Auto-update schedule data" || echo "No changes to commit"
+          git push origin data
+          echo "Schedule data updated and pushed."
+
+      - name: Determine failure reason
+        if: failure()
+        id: fail-reason
+        run: |
+          if [ "${{ steps.checkout.outcome }}" == "failure" ] || [ "${{ steps.checkout-data.outcome }}" == "failure" ]; then
+            echo "reason=Checkout failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.setup-python.outcome }}" == "failure" ] || [ "${{ steps.install-deps.outcome }}" == "failure" ]; then
+            echo "reason=Environment setup failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.generate.outcome }}" == "failure" ]; then
+            echo "reason=Schedule generation script crashed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.compare.outcome }}" == "failure" ]; then
+            echo "reason=JSON comparison failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.push.outcome }}" == "failure" ]; then
+            echo "reason=Deployment failed" >> $GITHUB_OUTPUT
           else
-            echo "No changes in schedule data."
+            echo "reason=Unknown pipeline failure" >> $GITHUB_OUTPUT
           fi
 
   notify-failure:
@@ -72,19 +121,21 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const title = `⚠️ Schedule update failed (${new Date().toISOString().split('T')[0]})`;
-            const body = `The automated schedule update workflow failed.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            const reason = "${{ needs.update-data.outputs.fail_reason }}" || "Unknown pipeline failure";
+            const title = `⚠️ Schedule update failed: ${reason}`;
+            const body = `The automated schedule update workflow failed during the **${reason}** stage.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
             
-            // Check for existing open issue to avoid duplicates
-            const issues = await github.rest.issues.listForRepo({
+            // Search for an existing open issue with the exact same title to avoid duplicates of the SAME failure type
+            const existingIssues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'automation-failure',
-              per_page: 1
+              labels: 'automation-failure'
             });
+
+            const isDuplicate = existingIssues.data.some(issue => issue.title === title);
             
-            if (issues.data.length === 0) {
+            if (!isDuplicate) {
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -92,4 +143,6 @@ jobs:
                 body,
                 labels: ['automation-failure']
               });
+            } else {
+              console.log(`Issue already exists for failure mode: ${reason}. Skipping creation.`);
             }

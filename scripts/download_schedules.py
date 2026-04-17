@@ -13,6 +13,7 @@ from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib.parse import urljoin
 from urllib3.util.retry import Retry
+import time
 
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "schedules" / "source_pdfs"
@@ -176,7 +177,6 @@ def download_all(skip_existing: bool = True, cleanup: bool = True) -> list[Path]
             print(f"Cleaned up {deleted} old special file(s)\n")
     
     # Fetch PDF links with retry on timeout
-    import time
     max_attempts = 5
     pdfs = None
     for attempt in range(1, max_attempts + 1):

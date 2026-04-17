@@ -29,6 +29,7 @@ jobs:
           filters: |
             scripts:
               - 'scripts/**'
+              - '.github/workflows/update_schedules.yml'
       - name: Trigger schedule update if scripts changed
         if: steps.filter.outputs.scripts == 'true'
         run: |
