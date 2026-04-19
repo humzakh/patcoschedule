@@ -14,9 +14,9 @@ import argparse
 import pdfplumber
 import pandas as pd
 import re
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from collections import defaultdict
 
 STATIONS_WESTBOUND = [
     "Lindenwold", "Ashland", "Woodcrest", "Haddonfield", "Westmont",

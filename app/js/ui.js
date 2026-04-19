@@ -58,17 +58,24 @@ async function setInfoHtml(html, skipAnimation = false) {
     const normalizedOld = infoArea.innerHTML.replace(/\s+/g, ' ').trim();
     if (normalizedNew === normalizedOld) return;
 
-    if (skipAnimation || !infoArea.querySelector('.card')) {
+    if (skipAnimation) {
+        infoArea.classList.add('no-animate');
         infoArea.innerHTML = html;
         return;
     }
 
-    // Add fade-out to existing cards
-    const existingCards = infoArea.querySelectorAll('.card');
-    existingCards.forEach(card => card.classList.add('p-fade-out'));
+    infoArea.classList.remove('no-animate');
 
-    // Wait for fade-out animation (0.15s in CSS)
-    await new Promise(resolve => setTimeout(resolve, 150));
+    const existingCards = infoArea.querySelectorAll('.card');
+    if (existingCards.length > 0) {
+        existingCards.forEach(card => card.classList.add('p-fade-out'));
+        // Wait for mid-session fade-out animation
+        await new Promise(resolve => setTimeout(resolve, 150));
+    } else {
+        // On pure page refresh, wait longer (350ms) before dropping the loading card in.
+        // This gives the user time to orient to the interface before the animation begins.
+        await new Promise(resolve => setTimeout(resolve, 350));
+    }
 
     infoArea.innerHTML = html;
 }
@@ -371,11 +378,6 @@ export function updateDestinationDropdown() {
 
 export async function updateTrains(showLoading = false, skipAnimation = false) {
     const infoArea = document.getElementById('trainInfo');
-    if (skipAnimation) {
-        infoArea.classList.add('no-animate');
-    } else {
-        infoArea.classList.remove('no-animate');
-    }
     if (!state.patcoData) {
         if (state.currentStation) {
             await setInfoHtml(`
