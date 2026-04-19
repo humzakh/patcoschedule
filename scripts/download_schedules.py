@@ -3,23 +3,70 @@
 Download PATCO timetables from the official website.
 Features:
 - Caches downloads (skips if PDF already exists)
-- Cleans up files older than 7 days
+- Exports metadata for generate_data.py
 """
 
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta    
-from pathlib import Path
-from requests.adapters import HTTPAdapter
-from urllib.parse import urljoin
-from urllib3.util.retry import Retry
+import json
+import random
 import time
+from bs4 import BeautifulSoup
+from pathlib import Path
+from datetime import datetime, timedelta  
+from urllib.error import HTTPError, URLError  
+from urllib.parse import urljoin
+from urllib.request import Request, urlopen
 
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "schedules" / "source_pdfs"
+METADATA_PATH = OUTPUT_DIR.parent / "metadata.json"
 PDF_DIR_STANDARD = OUTPUT_DIR / "standard"
 PDF_DIR_SPECIAL = OUTPUT_DIR / "special"
 MAX_AGE_DAYS = 7
+
+# Browser-like headers to avoid 403 Forbidden errors
+DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.ridepatco.org/',
+    'Upgrade-Insecure-Requests': '1',
+    'Cache-Control': 'max-age=0',
+    'Connection': 'keep-alive',
+}
+
+
+def make_request(url: str, retries: int = 5, backoff_factor: float = 5.0, timeout: int = 30) -> bytes:
+    """
+    Perform a GET request using urllib.request with a custom retry loop.
+    Returns response content as bytes.
+    """
+    last_error = None
+    
+    for attempt in range(retries):
+        try:
+            req = Request(url, headers=DEFAULT_HEADERS)
+            with urlopen(req, timeout=timeout) as response:
+                return response.read()
+                
+        except HTTPError as e:
+            last_error = e
+            # Retry on transient server errors or rate limiting (429, 500, 502, 503, 504)
+            # PATCO sometimes gives 403 if it suspects a bot, we'll retry that too with backoff
+            if e.code in [403, 429, 500, 502, 503, 504]:
+                wait_time = backoff_factor * (2 ** attempt) + random.uniform(0, 1)
+                print(f"  HTTP {e.code} error. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
+                time.sleep(wait_time)
+                continue
+            raise  # Fatal HTTP error
+            
+        except (URLError, TimeoutError) as e:
+            last_error = e
+            wait_time = backoff_factor * (2 ** attempt) + random.uniform(0, 1)
+            print(f"  Connection error: {e}. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
+            time.sleep(wait_time)
+            continue
+            
+    raise last_error if last_error else Exception(f"Failed to fetch {url} after {retries} attempts")
 
 
 def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> int:
@@ -42,46 +89,12 @@ def cleanup_special_files(directory: Path, max_age_days: int = MAX_AGE_DAYS) -> 
     return deleted
 
 
-def get_retry_session(retries: int = 5, backoff_factor: float = 1.0, status_forcelist: tuple = (403, 500, 502, 503, 504)) -> requests.Session:
-    """
-    Creates a requests session with a retry strategy and browser-like headers.
-    """
-    session = requests.Session()
-    
-    # Set default headers to identify as a browser and avoid 403 Forbidden errors
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': 'https://www.ridepatco.org/',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-    })
-
-    retry = Retry(
-        total=retries,
-        read=retries,
-        connect=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=status_forcelist,
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    return session
-
-
 def fetch_pdf_links(url: str) -> list[dict]:
     """
     Fetch the schedules page and extract all PDF links.
     """
-    session = get_retry_session()
-    response = session.get(url, timeout=30)
-    response.raise_for_status()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
+    content = make_request(url, timeout=30)
+    soup = BeautifulSoup(content, 'html.parser')
     pdfs = []
     
     # Find standard timetable
@@ -139,10 +152,7 @@ def download_pdf(url: str, output_path: Path, skip_existing: bool = True) -> boo
     
     try:
         print(f"  Downloading: {url}")
-        session = get_retry_session()
-        response = session.get(url, timeout=60)
-        response.raise_for_status()
-        new_content = response.content
+        new_content = make_request(url, timeout=60)
         
         # Check if identical to existing file to avoid touching mtime (which triggers Flask reload)
         if output_path.exists():
@@ -166,9 +176,9 @@ def download_all(skip_existing: bool = True, cleanup: bool = True) -> list[Path]
     Download all timetables from PATCO website.
     Returns list of dicts with keys: url, filename, name, type, local_path
     """
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    PDF_DIR_STANDARD.mkdir(exist_ok=True)
-    PDF_DIR_SPECIAL.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PDF_DIR_STANDARD.mkdir(parents=True, exist_ok=True)
+    PDF_DIR_SPECIAL.mkdir(parents=True, exist_ok=True)
     
     # Cleanup old special files
     if cleanup:
@@ -176,21 +186,13 @@ def download_all(skip_existing: bool = True, cleanup: bool = True) -> list[Path]
         if deleted:
             print(f"Cleaned up {deleted} old special file(s)\n")
     
-    # Fetch PDF links with retry on timeout
-    max_attempts = 5
-    pdfs = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            print(f"Fetching: {SCHEDULES_URL}" + (f" (attempt {attempt}/{max_attempts})" if attempt > 1 else ""))
-            pdfs = fetch_pdf_links(SCHEDULES_URL)
-            break
-        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
-            if attempt < max_attempts:
-                print(f"  Connection failed: {e}")
-                print(f"  Retrying in 5 seconds...")
-                time.sleep(5)
-            else:
-                raise
+    # Fetch PDF links (retry logic is now inside make_request)
+    try:
+        print(f"Fetching: {SCHEDULES_URL}")
+        pdfs = fetch_pdf_links(SCHEDULES_URL)
+    except Exception as e:
+        print(f"Failed to fetch PDF links: {e}")
+        return []
     
     if not pdfs:
         print("No PDFs found!")
@@ -233,6 +235,19 @@ def main():
     print("="*60 + "\n")
     
     downloaded = download_all()
+    
+    # Save metadata for generate_data.py
+    # Convert Path objects to strings for JSON serialization
+    metadata = []
+    for p in downloaded:
+        meta = p.copy()
+        if 'local_path' in meta:
+            meta['local_path'] = str(meta['local_path'])
+        metadata.append(meta)
+        
+    with open(METADATA_PATH, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Saved metadata to: {METADATA_PATH}")
     
     print(f"\n{'='*60}")
     print(f"\n{'='*60}")

@@ -11,11 +11,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add the project root to the python path so we can import from scripts
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.download_schedules import download_all
 from scripts.extract_timetable import extract_all, STATIONS_WESTBOUND, STATIONS_EASTBOUND
 
 
@@ -139,9 +137,15 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     csv_dir.mkdir(parents=True, exist_ok=True)
 
-    # 2. Download PDFs
-    print("\n--- Downloading Schedules ---")
-    pdfs = download_all(skip_existing=True, cleanup=True)
+    # 2. Load PDF Metadata
+    print("\n--- Loading PDF Metadata ---")
+    metadata_path = schedules_dir / "metadata.json"
+    pdfs = []
+    if metadata_path.exists():
+        with open(metadata_path) as f:
+            pdfs = json.load(f)
+    else:
+        print(f"Warning: Metadata file not found at {metadata_path}")
 
     if not pdfs:
         print("No new PDFs to process. (Or no PDFs exist).")

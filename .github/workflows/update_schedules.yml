@@ -44,7 +44,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run script to fetch and parse schedules
+      - name: Fetch schedule PDFs
+        id: fetch
+        run: python scripts/download_schedules.py
+
+      - name: Parse PDFs and generate data
         id: generate
         run: python scripts/generate_data.py
 
@@ -100,6 +104,8 @@ jobs:
             echo "reason=Checkout failed" >> $GITHUB_OUTPUT
           elif [ "${{ steps.setup-python.outcome }}" == "failure" ] || [ "${{ steps.install-deps.outcome }}" == "failure" ]; then
             echo "reason=Environment setup failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.fetch.outcome }}" == "failure" ]; then
+            echo "reason=Schedule download failed" >> $GITHUB_OUTPUT
           elif [ "${{ steps.generate.outcome }}" == "failure" ]; then
             echo "reason=Schedule generation script crashed" >> $GITHUB_OUTPUT
           elif [ "${{ steps.compare.outcome }}" == "failure" ]; then
