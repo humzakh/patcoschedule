@@ -44,10 +44,12 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 html {
     scrollbar-gutter: stable;
+    overflow-anchor: none;
 }
 
 body {
@@ -701,9 +703,7 @@ a.schedule-badge:hover {
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
+    white-space: nowrap;
 }
 
 .arrival-time .arrival-arrow {
@@ -769,7 +769,8 @@ a.schedule-badge:hover {
 .upcoming-item.thick-border::after {
     content: '';
     position: absolute;
-    bottom: -3px; /* Align precisely over the transparent border */
+    bottom: -3px;
+    /* Align precisely over the transparent border */
     left: 0;
     right: 0;
     height: 3px;
@@ -957,6 +958,10 @@ a.upcoming-schedule.sunday:hover {
     margin: 0 auto 1rem;
 }
 
+.spinner.updating {
+    border-width: 4px;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -1130,7 +1135,7 @@ footer {
 }
 
 #trainInfo:not(.no-animate) .card.loading {
-    animation: slideFadeIn 0.5s ease-out forwards;
+    animation: slideFadeIn 0.35s ease-out forwards;
 }
 
 @keyframes slideFadeOut {

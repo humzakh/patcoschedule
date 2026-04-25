@@ -16,9 +16,8 @@ import {
 // --- INITIALIZATION ---
 
 // Initialize UI immediate state to prevent flash
-document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
-const activeBtn = document.querySelector(`.direction-btn[data-direction="${state.currentDirection}"]`);
-if (activeBtn) activeBtn.classList.add('active');
+// The active direction button and its severity color are already correctly set by the index.html bootstrap script.
+// No need to clear and re-apply them here.
 
 // Set up station select
 setupCustomSelect(document.getElementById('stationSelect'), (val) => {
