@@ -26,7 +26,7 @@ export function parseTime(timeStr, nyDate, dayOffset = 0) {
 
 export function formatTime(timeStr) {
     if (!timeStr) return timeStr;
-    return timeStr.replace(/([AP])$/, ' $1M');
+    return timeStr.replace(/([AP])$/, '&nbsp;$1M');
 }
 
 export function formatMinutes(mins) {

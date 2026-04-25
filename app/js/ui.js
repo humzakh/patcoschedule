@@ -45,6 +45,26 @@ function renderInfos(list, stateObj, nextTrain, tomorrowHeaderState, fullList) {
         return html;
     }).join('');
 }
+/**
+ * Smoothly fade the active direction button back to default red (used during loading states)
+ */
+function fadeButtonToRed() {
+    const btn = document.querySelector('.direction-btn.active');
+    if (!btn) return;
+    
+    // Only force the slow 0.35s transition if we're actually fading FROM a severity color.
+    // If the background is empty, it was just clicked, so let the native 0.1s CSS transition handle the hover/click feel.
+    if (btn.style.background) {
+        btn.style.transition = 'background 0.35s ease-out, color 0.35s ease-out';
+        btn.style.background = ''; // Falls back to CSS var(--severity-color) → var(--patco-red)
+        document.documentElement.style.setProperty('--severity-color', 'var(--patco-red)');
+        sessionStorage.removeItem('patco_severity_color');
+        setTimeout(() => btn.style.transition = '', 350);
+    } else {
+        document.documentElement.style.setProperty('--severity-color', 'var(--patco-red)');
+        sessionStorage.removeItem('patco_severity_color');
+    }
+}
 
 /**
  * Helper to update the train info area with a smooth fade sequence
@@ -79,6 +99,10 @@ async function setInfoHtml(html, skipAnimation = false) {
     }
 
     infoArea.innerHTML = html;
+    
+    // Immediately synchronize the refresh ring so it's perfectly accurate before the first frame paints.
+    // The web worker might have ticked during the 150-350ms delay, and the HTML string is now slightly stale.
+    updateRefreshRing();
 }
 
 export function setCustomSelectValue(selectEl, value, updateList = true, fromGeo = false) {
@@ -125,6 +149,13 @@ export function closeAllCustomSelects(except = null) {
             s.classList.remove('open');
             s.classList.remove('hover-ready');
             clearTimeout(s.hoverTimeout);
+            
+            setTimeout(() => {
+                if (!s.classList.contains('open')) {
+                    const optionsPanel = s.querySelector('.custom-select-options');
+                    if (optionsPanel) optionsPanel.style.display = 'none';
+                }
+            }, 200);
         }
     });
     updateBodyLock();
@@ -143,6 +174,12 @@ export function setupCustomSelect(selectEl, onChange) {
             selectEl.classList.remove('hover-ready');
             clearTimeout(selectEl.hoverTimeout);
             updateBodyLock();
+            
+            setTimeout(() => {
+                if (!selectEl.classList.contains('open')) {
+                    optionsPanel.style.display = 'none';
+                }
+            }, 200);
         } else {
             closeAllCustomSelects(selectEl);
             document.body.classList.add('has-custom-select-open');
@@ -381,10 +418,12 @@ export async function updateTrains(showLoading = false, skipAnimation = false) {
     const infoArea = document.getElementById('trainInfo');
     if (!state.patcoData) {
         if (state.currentStation) {
+            fadeButtonToRed();
             const loadingText = state.isUpdating ? 'Updating app...' : 'Fetching schedule data...';
+            const spinnerClass = state.isUpdating ? 'spinner updating' : 'spinner';
             await setInfoHtml(`
             <div class="card loading">
-                <div class="spinner"></div>
+                <div class="${spinnerClass}"></div>
                 <p>${loadingText}</p>
             </div>
             `, skipAnimation);
@@ -410,10 +449,12 @@ export async function updateTrains(showLoading = false, skipAnimation = false) {
     }
 
     if (showLoading) {
+        fadeButtonToRed();
         const loadingText = !state.patcoData ? 'Fetching schedule data...' : 'Loading...';
+        const spinnerClass = state.isUpdating ? 'spinner updating' : 'spinner';
         await setInfoHtml(`
         <div class="card loading">
-            <div class="spinner"></div>
+            <div class="${spinnerClass}"></div>
             <p>${loadingText}</p>
         </div>
     `, skipAnimation);
@@ -585,14 +626,18 @@ export async function renderTrains(data, skipAnimation = false) {
 
     const currentActiveBtn = document.querySelector('.direction-btn.active');
     if (currentActiveBtn) {
-        currentActiveBtn.style.transition = 'background 0.4s ease-out, color 0.4s ease-out';
+        currentActiveBtn.style.transition = 'background 0.35s ease-out, color 0.35s ease-out';
         currentActiveBtn.style.background = countdownColor;
-        setTimeout(() => currentActiveBtn.style.transition = '', 400);
+        setTimeout(() => currentActiveBtn.style.transition = '', 350);
     }
 
     document.documentElement.style.setProperty('--severity-color', countdownColor);
+    try { sessionStorage.setItem('patco_severity_color', countdownColor); } catch (e) { }
 
     await setInfoHtml(html, skipAnimation);
+
+    // Cache the rendered card so it can be restored instantly on page reload
+    try { sessionStorage.setItem('patco_cached_card', html); } catch (e) { }
 
     // Add event listener for the toggle button after rendering
     const toggleBtn = document.getElementById('toggleMoreBtn');
@@ -604,6 +649,10 @@ export async function renderTrains(data, skipAnimation = false) {
 export function updateRefreshRing() {
     const progress = document.querySelector('.refresh-ring .progress');
     const countdownEl = document.getElementById('refreshCountdown');
+    
+    // Don't update the timer on an old card that is currently fading out
+    if (countdownEl && countdownEl.closest('.p-fade-out')) return;
+
     if (progress && countdownEl) {
         const offset = CIRCUMFERENCE * (1 - state.refreshCountdown / 60);
         progress.style.strokeDashoffset = offset;

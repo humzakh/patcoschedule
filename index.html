@@ -62,7 +62,7 @@
                             <span class="custom-select-value">Select a station...</span>
                             <span class="material-symbols-outlined select-arrow">expand_more</span>
                         </div>
-                        <div class="custom-select-options">
+                        <div class="custom-select-options" style="display: none;">
                             <div class="custom-select-panel">
                                 <div class="custom-select-list">
                                     <div class="custom-select-group" id="pa-stations">
@@ -127,7 +127,7 @@
                             <span class="custom-select-value">No destination</span>
                             <span class="material-symbols-outlined select-arrow">expand_more</span>
                         </div>
-                        <div class="custom-select-options">
+                        <div class="custom-select-options" style="display: none;">
                             <div class="custom-select-panel">
                                 <div class="custom-select-list">
                                     <div class="custom-select-option" data-value="">No destination</div>
@@ -165,7 +165,7 @@
                 </div>
             </div>
 
-            <div id="trainInfo">
+            <div id="trainInfo" class="no-animate">
                 <div class="card loading">
                     <div class="spinner"></div>
                     <p>Loading...</p>
@@ -184,9 +184,30 @@
             (function () {
                 try {
                     const dir = localStorage.getItem('patco_direction') || 'eastbound';
-                    document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
+                    
+                    // Temporarily disable transitions to prevent grey flash on load
+                    const allBtns = document.querySelectorAll('.direction-btn');
+                    allBtns.forEach(b => {
+                        b.style.transition = 'none';
+                        b.classList.remove('active');
+                    });
+
                     const btn = document.querySelector('.direction-btn[data-direction="' + dir + '"]');
-                    if (btn) btn.classList.add('active');
+                    if (btn) {
+                        btn.classList.add('active');
+                        var savedColor = sessionStorage.getItem('patco_severity_color');
+                        if (savedColor) {
+                            document.documentElement.style.setProperty('--severity-color', savedColor);
+                            btn.style.background = savedColor;
+                        }
+                    }
+
+                    // Restore transitions after the DOM has applied the styles
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            allBtns.forEach(b => b.style.transition = '');
+                        });
+                    });
 
                     const station = localStorage.getItem('patco_station');
                     if (station) {
@@ -209,16 +230,36 @@
                         }
                     }
 
-                    // Pre-inject loading area to prevent jump
+                    // Restore the last rendered card from cache for seamless reload transitions.
+                    // If cached, the normal cross-fade animation will smoothly transition to the loading state.
                     if (station) {
                         const trainInfo = document.getElementById('trainInfo');
                         if (trainInfo) {
-                            trainInfo.innerHTML = `
-                                <div class="card loading">
-                                    <div class="spinner"></div>
-                                    <p>Fetching schedule data...</p>
-                                </div>
-                            `;
+                            const cachedCard = sessionStorage.getItem('patco_cached_card');
+                            if (cachedCard) {
+                                trainInfo.innerHTML = cachedCard;
+                                
+                                // Instantly fix the stale countdown timer from cache before it paints
+                                const sec = 60 - new Date().getSeconds();
+                                const countdownEl = trainInfo.querySelector('#refreshCountdown');
+                                const progress = trainInfo.querySelector('.refresh-ring .progress');
+                                if (countdownEl && progress) {
+                                    countdownEl.textContent = sec + 's';
+                                    const circ = 2 * Math.PI * 8; // 50.265
+                                    progress.style.strokeDashoffset = circ * (1 - sec / 60);
+                                    // Prevent transition so it snaps instantly on initial load
+                                    progress.style.transition = 'none';
+                                }
+                            } else {
+                                const isUpdating = sessionStorage.getItem('patco_sw_updating');
+                                const spinnerClass = isUpdating ? 'spinner updating' : 'spinner';
+                                trainInfo.innerHTML = `
+                                    <div class="card loading">
+                                        <div class="${spinnerClass}"></div>
+                                        <p>${isUpdating ? 'Updating app...' : 'Fetching schedule data...'}</p>
+                                    </div>
+                                `;
+                            }
                         }
                     }
                 } catch (e) { }

@@ -177,6 +177,7 @@ export function getNextTrainsForDirection(station, direction, count = 20) {
 export async function loadData(callbacks) {
     const { updateTrains, updateDestinationDropdown } = callbacks;
     try {
+        sessionStorage.removeItem('patco_cached_card'); // Clear so reloading mid-load doesn't restore stale data
         updateTrains(true);
 
         const fetchPromise = fetch(`${DATA_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
