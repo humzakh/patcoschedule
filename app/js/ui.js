@@ -58,6 +58,7 @@ async function setInfoHtml(html, skipAnimation = false) {
     const normalizedOld = infoArea.innerHTML.replace(/\s+/g, ' ').trim();
     if (normalizedNew === normalizedOld) return;
 
+
     if (skipAnimation) {
         infoArea.classList.add('no-animate');
         infoArea.innerHTML = html;
@@ -380,10 +381,11 @@ export async function updateTrains(showLoading = false, skipAnimation = false) {
     const infoArea = document.getElementById('trainInfo');
     if (!state.patcoData) {
         if (state.currentStation) {
+            const loadingText = state.isUpdating ? 'Updating app...' : 'Fetching schedule data...';
             await setInfoHtml(`
             <div class="card loading">
                 <div class="spinner"></div>
-                <p>Fetching schedule data...</p>
+                <p>${loadingText}</p>
             </div>
             `, skipAnimation);
         } else {

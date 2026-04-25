@@ -204,11 +204,13 @@ if ('serviceWorker' in navigator) {
         });
     });
 
-    // Reload the page when a new Service Worker takes control
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
-    });
+    // Only listen for controllerchange if we did NOT just come back from an update reload.
+    // This breaks the reload cascade: update fires controllerchange → reload → flag is set →
+    // reloaded page skips the listener entirely → no more reloads.
+    if (!state.isUpdating) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            sessionStorage.setItem('patco_sw_updating', '1');
+            window.location.reload();
+        });
+    }
 }

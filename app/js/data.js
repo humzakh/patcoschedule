@@ -187,6 +187,7 @@ export async function loadData(callbacks) {
 
         state.patcoData = data;
         state.lastFetchTime = Date.now();
+        state.isUpdating = false; // Release UI lock so train data can render
         updateDestinationDropdown();
         updateTrains();
     } catch (err) {
