@@ -8,6 +8,7 @@ Features:
 
 import json
 import random
+import sys
 import time
 from bs4 import BeautifulSoup
 from pathlib import Path
@@ -25,7 +26,7 @@ MAX_AGE_DAYS = 7
 
 # Browser-like headers to avoid 403 Forbidden errors
 DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Referer': 'https://www.ridepatco.org/',
@@ -187,12 +188,8 @@ def download_all(skip_existing: bool = True, cleanup: bool = True) -> list[Path]
             print(f"Cleaned up {deleted} old special file(s)\n")
     
     # Fetch PDF links (retry logic is now inside make_request)
-    try:
-        print(f"Fetching: {SCHEDULES_URL}")
-        pdfs = fetch_pdf_links(SCHEDULES_URL)
-    except Exception as e:
-        print(f"Failed to fetch PDF links: {e}")
-        return []
+    print(f"Fetching: {SCHEDULES_URL}")
+    pdfs = fetch_pdf_links(SCHEDULES_URL)
     
     if not pdfs:
         print("No PDFs found!")
@@ -234,7 +231,21 @@ def main():
     print("PATCO Timetable Downloader")
     print("="*60 + "\n")
     
-    downloaded = download_all()
+    try:
+        downloaded = download_all()
+    except Exception as e:
+        print(f"\n❌ FATAL: Failed to fetch schedule data: {e}")
+        sys.exit(1)
+    
+    if not downloaded:
+        print("\n❌ FATAL: No PDFs were downloaded.")
+        sys.exit(1)
+    
+    # Validate: at least one standard schedule must exist
+    has_standard = any(p.get('type') == 'standard' for p in downloaded)
+    if not has_standard:
+        print("\n❌ FATAL: No standard schedule PDF was downloaded.")
+        sys.exit(1)
     
     # Save metadata for generate_data.py
     # Convert Path objects to strings for JSON serialization
@@ -250,7 +261,6 @@ def main():
     print(f"Saved metadata to: {METADATA_PATH}")
     
     print(f"\n{'='*60}")
-    print(f"\n{'='*60}")
     print(f"Ready: {len(downloaded)} PDF(s)")
     for p in downloaded:
         print(f"  • {p['filename']} ({p['type']})")
@@ -258,4 +268,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

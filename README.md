@@ -1,13 +1,13 @@
-<p align="center">
+<div align="center">
   <a href="https://patcoschedule.com">
-    <img src="app/images/patco.svg" width="257" height="36"><br>
-    <img src="app/images/schedule.svg" width="407" height="36">
+    <div><img src="app/images/patco.svg" width="257" height="36"></div>
+    <div><img src="app/images/schedule.svg" width="407" height="36"></div>
   </a>
-</p>
+</div>
 
 ---
 
-A simple web app that displays the upcoming PATCO train schedule.<br>
+A simple web app that displays the upcoming PATCO Speedline schedule.<br>
 Data is sourced from [ridepatco.org](https://ridepatco.org/schedules/schedules.asp)
 
 This project is not affiliated with the Port Authority Transit Corporation (PATCO) or the Delaware River Port Authority (DRPA).

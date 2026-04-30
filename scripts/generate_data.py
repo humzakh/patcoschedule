@@ -148,9 +148,9 @@ def main():
         print(f"Warning: Metadata file not found at {metadata_path}")
 
     if not pdfs:
-        print("No new PDFs to process. (Or no PDFs exist).")
-        # We still want to build the JSON data even if PDFs didn't change (e.g., initial run)
-        # So we continue below.
+        print("\n❌ FATAL: No PDFs in metadata. Cannot generate data.")
+        print("Hint: download_schedules.py should have caught this.")
+        sys.exit(1)
 
     # Find the standard URL for reference
     standard_url = None
@@ -191,12 +191,26 @@ def main():
     # Loop over standard and special directories to extract everything
     pdf_source_dir = schedules_dir / "source_pdfs"
     csv_paths = []
-    if pdf_source_dir.exists():
-        for pdf_file in pdf_source_dir.rglob("*.pdf"):
-             csvs = extract_all(pdf_file, csv_dir, skip_existing=True, cleanup=False, quiet=True)
-             csv_paths.extend(csvs)
-
-    print("\nExtraction complete.")
+    
+    # Validate: source PDFs must actually exist on disk
+    pdf_files_on_disk = list(pdf_source_dir.rglob("*.pdf")) if pdf_source_dir.exists() else []
+    if not pdf_files_on_disk:
+        print(f"\n❌ FATAL: No PDF files found in {pdf_source_dir}")
+        print("The download step may have failed silently.")
+        sys.exit(1)
+    
+    print(f"Found {len(pdf_files_on_disk)} PDF(s) on disk.")
+    
+    for pdf_file in pdf_files_on_disk:
+         csvs = extract_all(pdf_file, csv_dir, skip_existing=True, cleanup=False, quiet=True)
+         csv_paths.extend(csvs)
+    
+    if not csv_paths:
+        print(f"\n❌ FATAL: No CSVs were produced from PDF extraction.")
+        print("The PDFs may be corrupt or in an unexpected format.")
+        sys.exit(1)
+    
+    print(f"\nExtraction complete. Produced {len(csv_paths)} CSV(s).")
 
     # 4. Convert to JSON
     print("\n--- Generating JSON ---")
@@ -312,6 +326,32 @@ def main():
         return match.group(1) if match else k
 
     schedules['special'] = dict(sorted(schedules['special'].items(), key=lambda x: get_sort_key(x[0]), reverse=True))
+
+    # Validate: standard schedules must have real data
+    standard_count = len(schedules['standard'])
+    if standard_count == 0:
+        print("\n❌ FATAL: No standard schedules were generated.")
+        print("The pipeline produced no usable schedule data.")
+        sys.exit(1)
+    
+    # Validate: at least weekday schedule should exist
+    if 'weekday' not in schedules['standard']:
+        print("\n⚠️  WARNING: No weekday schedule found in standard schedules.")
+    
+    # Count total trips across all schedules to ensure data isn't empty
+    total_trips = 0
+    for stype in schedules['standard'].values():
+        if stype:
+            for direction in ['westbound', 'eastbound']:
+                if stype.get(direction) and stype[direction].get('times'):
+                    total_trips += len(stype[direction]['times'])
+    
+    if total_trips == 0:
+        print("\n❌ FATAL: All schedule tables are empty (0 trips).")
+        print("The PDF extraction produced no usable time data.")
+        sys.exit(1)
+    
+    print(f"\n✅ Validated: {standard_count} standard schedule type(s), {total_trips} total trips.")
 
     output_data = {
         'last_updated': datetime.now().isoformat(),

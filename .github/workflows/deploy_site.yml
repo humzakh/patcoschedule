@@ -9,34 +9,48 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  deploy-pages:
+  check-changes:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-      actions: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      scripts: ${{ steps.filter.outputs.scripts }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Check for script changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
             scripts:
               - 'scripts/**'
               - '.github/workflows/update_schedules.yml'
-      - name: Trigger schedule update if scripts changed
-        if: steps.filter.outputs.scripts == 'true'
+
+  trigger-schedule-update:
+    needs: check-changes
+    if: needs.check-changes.outputs.scripts == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Trigger schedule update
         run: |
           echo "Scripts changed, triggering schedule update..."
           gh workflow run update_schedules.yml --ref master
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
       - name: Cache-bust asset URLs
         run: |
           sed -i "s/__CACHE_BUST__/${GITHUB_SHA::7}/g" index.html sw.js app/js/*.js
@@ -50,11 +64,66 @@ jobs:
           cp CNAME _site/
           cp -r app _site/app
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: '_site'
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+
+  notify-failure:
+    needs: [trigger-schedule-update, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+    steps:
+      - name: Create issue on failure
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const response = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            const failedJob = response.data.jobs.find(j => j.conclusion === 'failure');
+            const reason = failedJob ? `Failure in job: ${failedJob.name}` : "Unknown pipeline failure";
+            
+            const title = `⚠️ Deployment failed: ${reason}`;
+            const body = `The GitHub Pages deployment workflow failed during the **${reason}** stage.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'deployment-failure'
+            });
+
+            const isDuplicate = existingIssues.data.some(issue => issue.title === title);
+            
+            if (!isDuplicate) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['deployment-failure']
+              });
+            } else {
+              console.log(`Issue already exists for failure mode: ${reason}. Skipping creation.`);
+            }
