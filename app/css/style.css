@@ -960,6 +960,7 @@ a.upcoming-schedule.sunday:hover {
 
 .spinner.updating {
     border-width: 4px;
+    animation-direction: reverse;
 }
 
 @keyframes spin {

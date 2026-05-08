@@ -2,6 +2,7 @@
 """
 Download PATCO timetables from the official website.
 Features:
+- Uses curl_cffi for browser-like TLS fingerprint (avoids WAF 403s)
 - Caches downloads (skips if PDF already exists)
 - Exports metadata for generate_data.py
 """
@@ -11,11 +12,10 @@ import random
 import sys
 import time
 from bs4 import BeautifulSoup
+from curl_cffi import requests as curl_requests
 from pathlib import Path
 from datetime import datetime, timedelta  
-from urllib.error import HTTPError, URLError  
 from urllib.parse import urljoin
-from urllib.request import Request, urlopen
 
 SCHEDULES_URL = "https://www.ridepatco.org/schedules/schedules.asp"
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "schedules" / "source_pdfs"
@@ -24,46 +24,35 @@ PDF_DIR_STANDARD = OUTPUT_DIR / "standard"
 PDF_DIR_SPECIAL = OUTPUT_DIR / "special"
 MAX_AGE_DAYS = 7
 
-# Browser-like headers to avoid 403 Forbidden errors
-DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://www.ridepatco.org/',
-    'Upgrade-Insecure-Requests': '1',
-    'Cache-Control': 'max-age=0',
-    'Connection': 'keep-alive',
-}
-
 
 def make_request(url: str, retries: int = 5, backoff_factor: float = 5.0, timeout: int = 30) -> bytes:
     """
-    Perform a GET request using urllib.request with a custom retry loop.
+    Perform a GET request using curl_cffi with Chrome browser impersonation.
     Returns response content as bytes.
     """
     last_error = None
     
     for attempt in range(retries):
         try:
-            req = Request(url, headers=DEFAULT_HEADERS)
-            with urlopen(req, timeout=timeout) as response:
-                return response.read()
-                
-        except HTTPError as e:
-            last_error = e
-            # Retry on transient server errors or rate limiting (429, 500, 502, 503, 504)
-            # PATCO sometimes gives 403 if it suspects a bot, we'll retry that too with backoff
-            if e.code in [403, 429, 500, 502, 503, 504]:
+            response = curl_requests.get(url, impersonate="chrome", timeout=timeout)
+            
+            if response.status_code == 200:
+                return response.content
+            elif response.status_code in [403, 429, 500, 502, 503, 504]:
+                last_error = Exception(f"HTTP {response.status_code}")
                 wait_time = backoff_factor * (2 ** attempt) + random.uniform(0, 1)
-                print(f"  HTTP {e.code} error. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
+                print(f"  HTTP {response.status_code} error. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
                 time.sleep(wait_time)
                 continue
-            raise  # Fatal HTTP error
-            
-        except (URLError, TimeoutError) as e:
+            else:
+                raise Exception(f"HTTP Error {response.status_code} for {url}")
+                
+        except Exception as e:
+            if 'HTTP Error' in str(e):
+                raise
             last_error = e
             wait_time = backoff_factor * (2 ** attempt) + random.uniform(0, 1)
-            print(f"  Connection error: {e}. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
+            print(f"  Error: {e}. Retrying in {wait_time:.1f}s... (attempt {attempt+1}/{retries})")
             time.sleep(wait_time)
             continue
             
