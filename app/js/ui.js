@@ -164,7 +164,21 @@ export function closeAllCustomSelects(except = null) {
 export function setupCustomSelect(selectEl, onChange) {
     const trigger = selectEl.querySelector('.custom-select-trigger');
     const optionsPanel = selectEl.querySelector('.custom-select-options');
+    const panel = selectEl.querySelector('.custom-select-panel');
     const list = selectEl.querySelector('.custom-select-list');
+
+    const updateScrollMasks = () => {
+        if (!panel || !list) return;
+        const isScrollable = list.scrollHeight > list.clientHeight;
+        const isAtTop = !isScrollable || list.scrollTop <= 5;
+        const isAtBottom = !isScrollable || list.scrollTop + list.clientHeight >= list.scrollHeight - 5;
+        panel.classList.toggle('at-top', isAtTop);
+        panel.classList.toggle('at-bottom', isAtBottom);
+    };
+
+    if (list) {
+        list.addEventListener('scroll', updateScrollMasks, { passive: true });
+    }
 
     trigger.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -203,6 +217,7 @@ export function setupCustomSelect(selectEl, onChange) {
 
                 const idealScrollTop = optOffsetTop - (listHeight / 2) + (optHeight / 2);
                 list.scrollTop = idealScrollTop;
+                updateScrollMasks();
                 const actualScrollTop = list.scrollTop;
 
                 let offset = (triggerHeight / 2) - (optOffsetTop - actualScrollTop + (optHeight / 2));

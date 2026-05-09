@@ -248,6 +248,7 @@ label {
 }
 
 .custom-select-panel {
+    position: relative;
     background: #1c1c28;
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -278,6 +279,37 @@ label {
     pointer-events: auto;
     /* Delay interaction until animation finishes to prevent accidental touch highlights on mobile */
     transition: opacity 0.2s ease-out, visibility 0s linear 0s, pointer-events 0s linear 0.2s;
+}
+
+/* Premium Feathered Scroll Edges */
+.custom-select-panel::before,
+.custom-select-panel::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 48px;
+    z-index: 10;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+}
+
+.custom-select-panel.at-top::before {
+    opacity: 0;
+}
+
+.custom-select-panel.at-bottom::after {
+    opacity: 0;
+}
+
+.custom-select-panel::before {
+    top: 0;
+    background: linear-gradient(to bottom, rgba(28, 28, 40, 1) 0%, rgba(28, 28, 40, 0) 100%);
+}
+
+.custom-select-panel::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(28, 28, 40, 1) 0%, rgba(28, 28, 40, 0) 100%);
 }
 
 .custom-select.open .custom-select-panel {
@@ -321,6 +353,13 @@ label {
 @media (hover: none) {
     .custom-select.hover-ready .custom-select-option:not(.disabled):active {
         background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+/* Provide larger touch targets natively on any touch-based device (phones, tablets, touch laptops) regardless of screen width */
+@media (pointer: coarse) {
+    .custom-select-option {
+        padding: 0.8rem 1rem;
     }
 }
 
