@@ -121,6 +121,55 @@ def whatthefuck(rows):
 
         new_rows.append(curr_row)
 
+    # --- PASS 2: Bulk monotonicity check ---
+    # Catches cases where an entire block of times has the wrong suffix.
+    # E.g., schedule goes 11:58A -> 12:13A -> 12:28A ... (should be P after noon)
+    # The single-row check above won't catch this because neighbors are consistent.
+
+    data_rows = new_rows[1:]  # Skip header
+    if len(data_rows) >= 2:
+        prev_mins = None
+        i = 0
+        while i < len(data_rows):
+            curr_time_str = get_first_time(data_rows[i])
+            if not curr_time_str:
+                i += 1
+                continue
+
+            curr_mins = time_to_minutes(curr_time_str)
+            if curr_mins is None:
+                i += 1
+                continue
+
+            if prev_mins is not None:
+                # Check if time went backwards by more than 6 hours
+                gap = (curr_mins - prev_mins) % 1440
+                if gap > 720:  # Went backwards by > 6 hours
+                    suffix = curr_time_str[-1]
+                    if suffix in ('A', 'P'):
+                        flipped_suffix = 'P' if suffix == 'A' else 'A'
+                        flipped_str = curr_time_str[:-1] + flipped_suffix
+                        flipped_mins = time_to_minutes(flipped_str)
+
+                        # Does flipping restore forward progression?
+                        flipped_gap = (flipped_mins - prev_mins) % 1440
+                        if flipped_gap < 120:
+                            # Flip this row AND all subsequent rows that have the same wrong suffix
+                            print(f"  [whatthefuck/bulk] Detected bulk AM/PM error at row {i}: {curr_time_str}")
+                            for k in range(i, len(data_rows)):
+                                row = data_rows[k]
+                                for j in range(len(row)):
+                                    val = row[j]
+                                    if val and val[-1] == suffix:
+                                        row[j] = val[:-1] + flipped_suffix
+                            # Recalculate curr_mins after flip
+                            curr_time_str = get_first_time(data_rows[i])
+                            curr_mins = time_to_minutes(curr_time_str)
+                            print(f"  [whatthefuck/bulk] Flipped '{suffix}' -> '{flipped_suffix}' for rows {i} through {len(data_rows)-1}")
+
+            prev_mins = curr_mins
+            i += 1
+
     return new_rows
 
 

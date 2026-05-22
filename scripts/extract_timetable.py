@@ -109,6 +109,8 @@ def extract_times_with_position(page, y_start: float = 0, y_end: float = None):
     Extract time values and closed-station markers with their positions from a page region.
     The à character marks closed stations in the PDF.
     Also handles times without AM/PM suffix (e.g., "12:05" instead of "12:05A").
+    Some PDFs render the suffix as a separate text element to the right of the time
+    (e.g., "12:05" at x=696 and "P" at x=724, same y). We pre-join these pairs.
     """
     if y_end is None:
         y_end = page.height
@@ -119,8 +121,25 @@ def extract_times_with_position(page, y_start: float = 0, y_end: float = None):
     # Match times without AM/PM suffix (some PDFs have bare times like "12:05")
     time_pattern_bare = re.compile(r'^\d{1,2}:\d{2}$')
     
+    # Pre-pass: join separated suffix tokens with their parent bare time.
+    # Look for standalone 'A'/'P' tokens on the same y-line, immediately to the right of a bare time.
+    suffix_indices = set()
+    for i, word in enumerate(words):
+        if word['text'] in ('A', 'P') and word['top'] >= y_start and word['top'] <= y_end:
+            # Find the closest bare time to the left on the same y-line
+            for j, candidate in enumerate(words):
+                if (j != i and time_pattern_bare.match(candidate['text'])
+                        and abs(candidate['top'] - word['top']) < 4
+                        and 0 < (word['x0'] - candidate['x0']) < 40):
+                    # Join the suffix onto the bare time
+                    candidate['text'] = candidate['text'] + word['text']
+                    suffix_indices.add(i)
+                    break
+    
     items = []
-    for word in words:
+    for i, word in enumerate(words):
+        if i in suffix_indices:
+            continue  # Skip standalone suffix tokens that were already joined
         if word['top'] < y_start or word['top'] > y_end:
             continue
         
