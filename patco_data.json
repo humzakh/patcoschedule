@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-06-29T16:32:29.372405",
+  "last_updated": "2026-06-30T17:20:40.066581",
   "schedules": {
     "standard": {
       "weekday": {
@@ -9440,8 +9440,8 @@
           ]
         }
       },
-      "TW_2026-06-30": {
-        "url": "https://www.ridepatco.org/schedules/TW_2026-06-30.pdf",
+      "TW_2026-07-01": {
+        "url": "https://www.ridepatco.org/schedules/TW_2026-07-01.pdf",
         "westbound": {
           "stations": [
             "Lindenwold",
@@ -12139,8 +12139,8 @@
           ]
         }
       },
-      "TW_2026-06-29": {
-        "url": "https://www.ridepatco.org/schedules/TW_2026-06-29.pdf",
+      "TW_2026-06-30": {
+        "url": "https://www.ridepatco.org/schedules/TW_2026-06-30.pdf",
         "westbound": {
           "stations": [
             "Lindenwold",
