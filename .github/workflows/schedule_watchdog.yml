@@ -4,7 +4,8 @@ name: Schedule Update Watchdog
 # in the last 30 minutes, dispatch it.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # Offset from the top of the hour, when GitHub's scheduler is busiest
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 jobs:
