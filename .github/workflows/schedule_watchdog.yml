@@ -1,0 +1,33 @@
+name: Schedule Update Watchdog
+
+# Fallback for the external webhook: if Update PATCO Schedules hasn't run
+# in the last 30 minutes, dispatch it.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-last-run:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger update if stale
+        run: |
+          LAST_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/update_schedules.yml/runs?per_page=1" --jq '.workflow_runs[0].created_at // empty')
+          NOW=$(date -u +%s)
+          if [ -n "$LAST_RUN" ]; then
+            AGE_MIN=$(( (NOW - $(date -u -d "$LAST_RUN" +%s)) / 60 ))
+            echo "Last run: $LAST_RUN ($AGE_MIN min ago)."
+            if [ "$AGE_MIN" -lt 30 ]; then
+              echo "Recent run found, nothing to do."
+              exit 0
+            fi
+          else
+            echo "No previous runs found."
+          fi
+          echo "::warning::No run in the last 30 minutes — triggering fallback update."
+          gh workflow run update_schedules.yml --ref master -f source=fallback
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

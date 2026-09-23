@@ -1,10 +1,24 @@
 name: Update PATCO Schedules
 
 on:
-  schedule:
-    # Run every 30 minutes
-    - cron: '*/30 * * * *'
+  # Primary trigger: webhook fired every 15 minutes by an external server
+  repository_dispatch:
+    types: [update-schedules]
+  # Manual runs, plus fallback runs from schedule_watchdog.yml
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'What triggered this run (manual runs always push data)'
+        type: choice
+        options:
+          - manual
+          - fallback
+        default: manual
+
+# Queue overlapping triggers instead of running them in parallel
+concurrency:
+  group: update-schedules
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -204,7 +218,7 @@ jobs:
 
   push-changes:
     needs: compare-data
-    if: needs.compare-data.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.compare-data.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.source == 'manual')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -232,7 +246,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add patco_data.json
           git add standard_pdf.json || true
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${{ github.event_name }}" = "repository_dispatch" ] || [ "${{ inputs.source }}" = "fallback" ]; then
             COMMIT_MSG="Auto-update schedule data"
           else
             COMMIT_MSG="Manually updated schedule data"
